@@ -36,6 +36,7 @@ METHOD_CONTEXT = 0
 RECEIVE_CALLBACKS = 0
 SEND_CALLBACKS = 0
 BLOB_CALLBACKS = 0
+CONNECTION_STATUS_CALLBACKS = 0
 TWIN_CALLBACKS = 0
 SEND_REPORTED_STATE_CALLBACKS = 0
 METHOD_CALLBACKS = 0
@@ -67,7 +68,7 @@ class DeviceClient(object):
         self.client.set_device_method_callback(self.device_method_callback, METHOD_CONTEXT)
 
 
-    def set_certificates(self):
+    def set_certificates(self, client):
         from iothub_client_cert import CERTIFICATES
         try:
             self.client.set_option("TrustedCerts", CERTIFICATES)
@@ -80,10 +81,10 @@ class DeviceClient(object):
         if not isinstance(event, IoTHubMessage):
             event = IoTHubMessage(bytearray(event, 'utf8'))
 
-        if len(properties) > 0:
-            prop_map = event.properties()
-            for key in properties:
-                prop_map.add_or_update(key, properties[key])
+        # if len(properties) > 0:
+            # prop_map = event.properties()
+            # for key in properties:
+                # prop_map.add_or_update(key, properties[key])
 
         self.client.send_event_async(
             event, self.send_confirmation_callback, send_context)
@@ -115,7 +116,7 @@ class DeviceClient(object):
         global RECEIVE_CALLBACKS
         message_buffer = message.get_bytearray()
         size = len(message_buffer)
-        print ( "Received Message [%d]:" % counter )
+        print ( "<SimDevice> Received Message [%d]:" % counter )
         print ( "    Data: <<<%s>>> & Size=%d" % (message_buffer[:size].decode('utf-8'), size) )
         map_properties = message.properties()
         key_value_pair = map_properties.get_internals()
@@ -155,4 +156,13 @@ class DeviceClient(object):
         global BLOB_CALLBACKS
         print ( "Blob upload confirmation[%d] received for message with result = %s" % (user_context, result) )
         BLOB_CALLBACKS += 1
-    print ( "    Total calls confirmed: %d" % BLOB_CALLBACKS )
+        print ( "    Total calls confirmed: %d" % BLOB_CALLBACKS )
+
+
+    def connection_status_callback(self, result, reason, user_context):
+        global CONNECTION_STATUS_CALLBACKS
+        print ( "Connection status changed[%d] with:" % (user_context) )
+        print ( "    reason: %d" % reason )
+        print ( "    result: %s" % result )
+        CONNECTION_STATUS_CALLBACKS += 1
+        print ( "    Total calls confirmed: %d" % CONNECTION_STATUS_CALLBACKS )

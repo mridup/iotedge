@@ -9,6 +9,7 @@ import iothub_client
 # pylint: disable=E0611
 from iothub_client import IoTHubModuleClient, IoTHubClientError, IoTHubTransportProvider
 from iothub_client import IoTHubMessage, IoTHubMessageDispositionResult, IoTHubError
+from iothub_client import IoTHubClientRetryPolicy, GetRetryPolicyReturnValue
 from simDevice import DeviceClient
 
 # String containing Hostname, Device Id & Device Key in the format:
@@ -19,10 +20,20 @@ CONNECTION_STRING = "HostName=Mridu-IotHub.azure-devices.net;DeviceId=Dev_0;Shar
 # The timeout period starts at IoTHubModuleClient.send_event_async.
 # By default, messages do not expire.
 MESSAGE_TIMEOUT = 10000
+TIMEOUT = 241000
+MINIMUM_POLLING_TIME = 9
 
 # global counters
 RECEIVE_CALLBACKS = 0
 SEND_CALLBACKS = 0
+
+RECEIVE_CONTEXT = 0
+MESSAGE_COUNT = 5
+
+CONNECTION_STATUS_CONTEXT = 0
+TWIN_CONTEXT = 0
+SEND_REPORTED_STATE_CONTEXT = 0
+METHOD_CONTEXT = 0
 
 # Choose HTTP, AMQP or MQTT as transport protocol.  Currently only MQTT is supported.
 PROTOCOL = IoTHubTransportProvider.MQTT
@@ -55,6 +66,42 @@ def receive_message_callback(message, hubManager):
     return IoTHubMessageDispositionResult.ACCEPTED
 
 
+def iothub_client_init():
+    # prepare iothub client
+    dev_client = DeviceClient(CONNECTION_STRING)
+    if dev_client.client_protocol == IoTHubTransportProvider.HTTP:
+        dev_client.client.set_option("timeout", TIMEOUT)
+        dev_client.client.set_option("MinimumPollingTime", MINIMUM_POLLING_TIME)
+    # set the time until a message times out
+    dev_client.client.set_option("messageTimeout", MESSAGE_TIMEOUT)
+    # some embedded platforms need certificate information
+    # dev_client.set_certificates(dev_client)
+    # to enable MQTT logging set to 1
+    if dev_client.client_protocol == IoTHubTransportProvider.MQTT:
+        dev_client.client.set_option("logtrace", 0)
+        dev_client.client.set_message_callback(
+            dev_client.receive_message_callback, RECEIVE_CONTEXT)
+    if dev_client.client_protocol == IoTHubTransportProvider.MQTT or dev_client.client_protocol == IoTHubTransportProvider.MQTT_WS:
+        dev_client.client.set_device_twin_callback(
+            dev_client.device_twin_callback, TWIN_CONTEXT)
+        dev_client.client.set_device_method_callback(
+            dev_client.device_method_callback, METHOD_CONTEXT)
+    if dev_client.client_protocol == IoTHubTransportProvider.AMQP or dev_client.client_protocol == IoTHubTransportProvider.AMQP_WS:
+        dev_client.client.set_connection_status_callback(
+            dev_client.connection_status_callback, CONNECTION_STATUS_CONTEXT)
+    
+    retryPolicy = IoTHubClientRetryPolicy.RETRY_INTERVAL
+    retryInterval = 100
+    dev_client.client.set_retry_policy(retryPolicy, retryInterval)
+    print ( "SetRetryPolicy to: retryPolicy = %d" %  retryPolicy)
+    print ( "SetRetryPolicy to: retryTimeoutLimitInSeconds = %d" %  retryInterval)
+    retryPolicyReturn = dev_client.client.get_retry_policy()
+    print ( "GetRetryPolicy returned: retryPolicy = %d" %  retryPolicyReturn.retryPolicy)
+    print ( "GetRetryPolicy returned: retryTimeoutLimitInSeconds = %d" %  retryPolicyReturn.retryTimeoutLimitInSeconds)
+
+    return dev_client
+
+
 class HubManager(object):
 
     def __init__(
@@ -82,7 +129,16 @@ def main(protocol):
         print ( "IoT Hub Client for Python" )
 
         hub_manager = HubManager(protocol)
-        device_client = DeviceClient(connection_string=CONNECTION_STRING)
+        device_client = iothub_client_init()
+        print ( "IoTHubClient sending %d messages" % MESSAGE_COUNT )
+        message = IoTHubMessage("mridu test message from module!!!!")
+        message_counter = 0
+        message.message_id = "message_%d" % message_counter
+        message.correlation_id = "correlation_%d" % message_counter
+        # optional: assign properties
+        prop_map = message.properties()
+        prop_map.add("temperatureAlert", 'false')
+        device_client.send_event(message, properties=prop_map, send_context=message_counter)
 
         print ( "Starting the IoT Hub Python sample using protocol %s..." % hub_manager.client_protocol)
         print ( "The sample is now waiting for messages and will indefinitely.  Press Ctrl-C to exit. ")
