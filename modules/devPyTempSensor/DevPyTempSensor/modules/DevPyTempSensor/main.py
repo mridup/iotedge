@@ -59,6 +59,7 @@ class HubManager(object):
             protocol):
         self.client_protocol = protocol
         self.client = IoTHubModuleClient()
+        print ( "\nMridu: creating module from env\n")
         self.client.create_from_environment(protocol)
         # set the time until a message times out
         self.client.set_option("messageTimeout", MESSAGE_TIMEOUT)
@@ -80,12 +81,14 @@ class HubManager(object):
             outputQueueName, event, send_confirmation_callback, send_context)
 
 
+hub_manager = HubManager(PROTOCOL)
+
 def main(protocol):
     try:
         print ( "\nPython %s\n" % sys.version )
-        print ( "IoT Hub Client for Python" )
+        print ( "Mridu Pi Test: IoT Hub Client for Python" )
 
-        hub_manager = HubManager(protocol)
+        # hub_manager = HubManager(protocol)
 
         print ( "Starting the IoT Hub Python sample..."  )
 

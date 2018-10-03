@@ -14,7 +14,7 @@ from simDevice import DeviceClient
 
 # String containing Hostname, Device Id & Device Key in the format:
 # "HostName=<host_name>;DeviceId=<device_id>;SharedAccessKey=<device_key>"
-CONNECTION_STRING = "HostName=Mridu-IotHub.azure-devices.net;DeviceId=Dev_0;SharedAccessKey=rpdO7rL9wUYHdE8DJFaNhdonH25bsGD6tRPsZZJY6VY="
+CONNECTION_STRING = "HostName=Mridu-IotHub.azure-devices.net;DeviceId=iotedge-0;SharedAccessKey=8ej7v2l7KjHvT/70IASE/XWexPVSVzpUuf+D2QhxIi8="
 
 # messageTimeout - the maximum time in milliseconds until a message times out.
 # The timeout period starts at IoTHubModuleClient.send_event_async.

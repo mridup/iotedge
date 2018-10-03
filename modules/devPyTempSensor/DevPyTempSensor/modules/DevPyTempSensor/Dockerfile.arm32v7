@@ -15,3 +15,5 @@ RUN useradd -ms /bin/bash moduleuser
 USER moduleuser
 
 ENTRYPOINT [ "python", "-u", "./main.py" ]
+
+
