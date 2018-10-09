@@ -18,3 +18,5 @@ Issues (on 09/10/18):
      https://www.danielstechblog.io/azure-iot-edge-1-0-2-update-issues/
      
 2. In such cases, it may also happen that "Telemetry messages sent" Dashboard will not update and we are not able to see the messages from device. It is however strange that the "total number of messages used" keeps on increasing! 
+
+3. To run module on the PY, make sure that you always specify the environment variable "OptimizeForPerformance" to "false". Set this env variable when deploying the module from the Azure Portal using "set modules" option.
