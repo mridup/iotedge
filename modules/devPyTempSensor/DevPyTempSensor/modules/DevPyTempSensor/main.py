@@ -8,6 +8,8 @@ import random
 import time
 import sys
 import iothub_client
+from hubmanager.hubmanager import *
+
 from iothub_client import IoTHubModuleClient, IoTHubClientError, IoTHubTransportProvider
 from iothub_client import IoTHubMessage, IoTHubMessageDispositionResult, IoTHubError, DeviceMethodReturnValue
 
@@ -42,53 +44,13 @@ PROTOCOL = IoTHubTransportProvider.MQTT
 MSG_TXT = "{\"iotedge-x64\": \"DevPyTempSensor\",\"windSpeed\": %.2f,\"temperature\": %.2f,\"humidity\": %.2f}"
 
 
-def send_confirmation_callback(message, result, user_context):
-    global SEND_CALLBACKS
-    print ( "Confirmation[%d] received for message with result = %s" % (user_context, result) )
-    map_properties = message.properties()
-    key_value_pair = map_properties.get_internals()
-    print ( "    Properties: %s" % key_value_pair )
-    SEND_CALLBACKS += 1
-    print ( "    Total calls confirmed: %d" % SEND_CALLBACKS )
-
-
-class HubManager(object):
-
-    def __init__(
-            self,
-            protocol):
-        self.client_protocol = protocol
-        self.client = IoTHubModuleClient()
-        print ( "\nMridu: creating module from env\n")
-        self.client.create_from_environment(protocol)
-        # set the time until a message times out
-        self.client.set_option("messageTimeout", MESSAGE_TIMEOUT)
-        # set to increase logging level
-        # self.client.set_option("logtrace", 1)
-
-
-    # Sends a message to the queue with outputQueueName, "temperatureOutput" in the case of the sample.
-    def send_event_to_output(self, outputQueueName, event, properties, send_context):
-        if not isinstance(event, IoTHubMessage):
-            event = IoTHubMessage(bytearray(event, 'utf8'))
-
-        if len(properties) > 0:
-            prop_map = event.properties()
-            for key in properties:
-                prop_map.add_or_update(key, properties[key])
-
-        self.client.send_event_async(
-            outputQueueName, event, send_confirmation_callback, send_context)
-
-
-hub_manager = HubManager(PROTOCOL)
 
 def main(protocol):
     try:
         print ( "\nPython %s\n" % sys.version )
         print ( "Mridu Pi Test: IoT Hub Client for Python" )
 
-        # hub_manager = HubManager(protocol)
+        initialize_client(protocol)
 
         print ( "Starting the IoT Hub Python sample..."  )
 
@@ -109,7 +71,7 @@ def main(protocol):
                 msg_properties = {
                     "temperatureAlert": 'true' if temperature > 28 else 'false'
                 }
-                hub_manager.send_event_to_output("temperatureOutput", msg_txt_formatted, msg_properties, message_counter)
+                send_event_to_output("temperatureOutput", msg_txt_formatted, msg_properties, message_counter)
                 print ( "IoTHubModuleClient.send_event_to_output accepted message [%d] for transmission to IoT Hub." % message_counter )
 
             # Wait for Commands or exit
@@ -117,7 +79,7 @@ def main(protocol):
 
             status_counter = 0
             while status_counter < 6:
-                status = hub_manager.client.get_send_status()
+                status = client.get_send_status()
                 print ( "Send status: %s" % status )
                 time.sleep(10)
                 status_counter += 1
@@ -130,3 +92,4 @@ def main(protocol):
 
 if __name__ == '__main__':
     main(PROTOCOL)
+
