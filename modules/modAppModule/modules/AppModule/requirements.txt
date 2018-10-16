@@ -1,0 +1,5 @@
+azure-iothub-device-client~=1.4.3
+bluepy==1.1.4
+futures
+enum34==1.1.6
+blue_st_sdk
