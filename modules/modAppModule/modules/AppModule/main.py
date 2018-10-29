@@ -80,9 +80,9 @@ class MyFeatureListener(FeatureListener):
     # @param sample  Data extracted from the feature.
     #
     def on_update(self, feature, sample):
-        if(self.num < NOTIFICATIONS):
-            print(feature)
-            self.num += 1
+        #if(self.num < NOTIFICATIONS):
+        print(feature)
+        self.num += 1
 
 # Bluetooth Scanning time in seconds.
 SCANNING_TIME_s = 5
@@ -166,28 +166,31 @@ def main(protocol):
         manager_listener = MyManagerListener()
         manager.add_listener(manager_listener)
 
-        # Synchronous discovery of Bluetooth devices.
-        print('Scanning Bluetooth devices...\n')
-        manager.discover(False, SCANNING_TIME_s)
+        while True:
+            # Synchronous discovery of Bluetooth devices.
+            print('Scanning Bluetooth devices...\n')
+            manager.discover(False, SCANNING_TIME_s)
 
-        # Getting discovered devices.
-        print('Getting node device...\n')
-        devices = manager.get_nodes()
+            # Getting discovered devices.
+            print('Getting node device...\n')
+            devices = manager.get_nodes()
 
-        # Listing discovered devices.
-        if not devices:
-            print('\nNo Bluetooth devices found.')
-        else:
-            print('\nAvailable Bluetooth devices:')
-            i = 1
-            device_found = False
-            for device in devices:
-                device_name = device.get_name()
-                print('%d) %s: [%s]' % (i, device.get_name(), device.get_tag()))
-                if device_name is "IOT_DEVICE":
-                    device_found = True
-                    print("IOT_DEVICE device found!")
-                i += 1
+            # Listing discovered devices.
+            if not devices:
+                print('\nNo Bluetooth devices found.')
+                continue
+            else:
+                print('\nAvailable Bluetooth devices:')
+                i = 1
+                device_found = False
+                for device in devices:
+                    device_name = device.get_name()
+                    print('%d) %s: [%s]' % (i, device.get_name(), device.get_tag()))
+                    if device_name is "IOT_DEVICE":
+                        device_found = True
+                        print("IOT_DEVICE device found!")
+                    i += 1
+                break
 
         # Selecting a device.
         # Connecting to the device.
@@ -235,22 +238,22 @@ def main(protocol):
             audioFeature.add_listener(audioFeature_listener)
             device.enable_notifications(audioFeature)
 
-        # Getting notifications.
-        n=0
-        while n < NOTIFICATIONS:
+        # Getting notifications forever
+        #n=0
+        while True:
             if device.wait_for_notifications(0.05):
-                n += 1
+                print("rcvd notification")
 
         #Disable notifications
-        device.disable_notifications(feature)
-        feature.remove_listener(feature_listener)
+        #device.disable_notifications(feature)
+        #feature.remove_listener(feature_listener)
 
-        if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
-            device.disable_notifications(audioSyncFeature)
-            audioSyncFeature.remove_listener(audioSyncFeature_listener)
-        elif feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
-            device.disable_notifications(audioFeature)
-            audioFeature.remove_listener(audioFeature_listener)
+        #if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
+        #    device.disable_notifications(audioSyncFeature)
+        #    audioSyncFeature.remove_listener(audioSyncFeature_listener)
+        #elif feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
+        #    device.disable_notifications(audioFeature)
+        #    audioFeature.remove_listener(audioFeature_listener)
 
 
         while True:
