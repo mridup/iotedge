@@ -1,7 +1,7 @@
 iotedge dev for edge-stsdk
 make some experiments with azure edge modules, especially to find out if we can create a Proxy(Translation) Gateway with the Edge device and then connect non-IP devices through the gateway to the IoTHub
 
-Issues (on 09/10/18):
+Issues and important points to note for RPi:
 1. HSM Certificates expire sometimes (Not sure why and how):
    In such cases, iotedge runtime will error out and fail. To see error:
 
@@ -17,6 +17,26 @@ Issues (on 09/10/18):
      workaround in following link: (for error of hsm certs)
      https://www.danielstechblog.io/azure-iot-edge-1-0-2-update-issues/
      
-2. In such cases, it may also happen that "Telemetry messages sent" Dashboard will not update and we are not able to see the messages from device. It is however strange that the "total number of messages used" keeps on increasing! 
+2. In such cases as point no.1, it may also happen that "Telemetry messages sent" Dashboard will not update and we are not able to see the messages from device. It is however strange that the "total number of messages used" keeps on increasing! 
 
 3. To run module on the PY, make sure that you always specify the environment variable "OptimizeForPerformance" to "false". Set this env variable when deploying the module from the Azure Portal using "set modules" option.
+
+4. To use devices like the BLE, we must set the network mode in the container to "host" in order for the container to access the network details. Hence we need to set the "Container Create Options" while "adding" the module in portal. Also previleged mode is set for the time being. e.g.
+      {
+         "NetworkingConfig": {
+         "EndpointsConfig": {
+            "host": {}
+         }
+      },
+         "HostConfig": {
+         "Privileged": true,
+         "NetworkMode": "host"
+         }
+      }
+      
+ 5. In order to run the container with root logged in, currently we are using Dockerfile without any added user (e.g. moduleuser)
+
+
+ 
+
+
