@@ -36,7 +36,10 @@ Issues and important points to note for RPi:
       
  5. In order to run the container with root logged in, currently we are using Dockerfile without any added user (e.g. moduleuser)
 
-
+ 6. Make sure to always use unbuffered output in python command in dockerfile: CMD ["python", "-u", "main.py"] as python by default will always buffer the output and "docker logs <container>" will not show any logs in this case. 
+So CMD ["python", "main.py"] will show no logs!
+   
+   
  
 
 
