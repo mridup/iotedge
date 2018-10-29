@@ -4,7 +4,8 @@ WORKDIR /app
 
 RUN apt-get update && \
     apt-get install libgtk2.0-dev && \
-    apt-get install -y --no-install-recommends libboost-python1.62.0 python3-pip libpython3-dev && \
+    apt-get install -y --no-install-recommends libboost-python1.55.0 && \
+    apt-get install -y python3-pip libpython3-dev && \
     rm -rf /var/lib/apt/lists/* 
 
 RUN pip install --upgrade setuptools 
@@ -13,7 +14,8 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-RUN useradd -ms /bin/bash moduleuser
-USER moduleuser
+#RUN /bin/bash -c 'source start_and_run.sh'
+#RUN useradd -ms /bin/bash moduleuser && adduser moduleuser sudo
+#USER moduleuser
 
 ENTRYPOINT [ "python", "-u", "./main.py" ]
