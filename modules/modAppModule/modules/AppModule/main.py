@@ -154,137 +154,40 @@ class HubManager(object):
 def main(protocol):
     try:
         print ( "\nPython %s\n" % sys.version )
-        print ( "IoT Hub Client for Python" )
+        print ( "modAppModule" )
 
         hub_manager = HubManager(protocol)
 
         print ( "Starting the IoT Hub Python sample using protocol %s..." % hub_manager.client_protocol )
         print ( "The sample is now waiting for messages and will indefinitely.  Press Ctrl-C to exit. ")
 
-        try:
-            # Creating Bluetooth Manager.
-            manager = Manager.instance()
-            manager_listener = MyManagerListener()
-            manager.add_listener(manager_listener)
+        # Creating Bluetooth Manager.
+        manager = Manager.instance()
+        manager_listener = MyManagerListener()
+        manager.add_listener(manager_listener)
 
-            while True:
-                # Synchronous discovery of Bluetooth devices.
-                print('Scanning Bluetooth devices...\n')
-                manager.discover(False, SCANNING_TIME_s)
+        # Synchronous discovery of Bluetooth devices.
+        print('Scanning Bluetooth devices...\n')
+        manager.discover(False, SCANNING_TIME_s)
 
-                # Getting discovered devices.
-                devices = manager.get_nodes()
+        # Getting discovered devices.
+        print('Getting node device...\n')
+        devices = manager.get_nodes()
 
-                # Listing discovered devices.
-                if not devices:
-                    print('\nNo Bluetooth devices found.')
-                    continue # Scan Again!
-                print('\nAvailable Bluetooth devices:')
-                i = 1
-                device_found = False
-                for device in devices:
-                    device_name = device.get_name()
-                    print('%d) %s: [%s]' % (i, device.get_name(), device.get_tag()))
-                    if device_name is "IOT_DEVICE":
-                        device_found = True
-                    i += 1
-
-                # Selecting a device.
-                if device_found is True:
-                    # Connecting to the device.
-                    node_listener = MyNodeListener()
-                    device.add_listener(node_listener)
-                    print('\nConnecting to %s...' % (device.get_name()))
-                    device.connect()
-                    print('Connection done.')
-                else:
-                    # Exiting.
-                    manager.remove_listener(manager_listener)
-                    print('Exiting...\n')
-                    sys.exit(0)
-                               
-
-                while True:
-                    # Getting features.
-                    print('\nFeatures:')
-                    i = 1
-                    features = device.get_features()
-                    
-                    audioFeature = None
-                    audioSyncFeature = None
-                    
-                    for feature in features:
-                        if not feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
-                            if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
-                                audioFeature = feature
-                                print('%d,%d) %s' % (i,i+1, "Audio & Sync"))
-                            else:
-                                print('%d) %s' % (i, feature.get_name()))
-                            i+=1
-                        else:
-                            audioSyncFeature = feature
-                    # # Selecting a feature.
-                    # while True:
-                    #     choice = int(input('\nSelect a feature '
-                    #                     '(\'0\' to disconnect): '))
-                    #     if choice >= 0 and choice <= len(features):
-                    #         break
-                    # if choice == 0:
-                    #     # Disconnecting from the device.
-                    #     print('\nDisconnecting from %s...' % (device.get_name()))
-                    #     device.disconnect()
-                    #     print('Disconnection done.')
-                    #     device.remove_listener(node_listener)
-                    #     # Reset discovery.
-                    #     manager.reset_discovery()
-                    #     # Going back to the list of devices.
-                    #     break
-                    choice = 7
-                    feature = features[choice - 1]
-                    
-                    # Enabling notifications.
-                    feature_listener = MyFeatureListener()
-                    feature.add_listener(feature_listener)
-                    device.enable_notifications(feature)
-                    
-                    if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
-                        audioSyncFeature_listener = MyFeatureListener()
-                        audioSyncFeature.add_listener(audioSyncFeature_listener)
-                        device.enable_notifications(audioSyncFeature)
-                    elif feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
-                        audioFeature_listener = MyFeatureListener()
-                        audioFeature.add_listener(audioFeature_listener)
-                        device.enable_notifications(audioFeature)
-                    
-                    # Getting notifications.
-                    n = 0
-                    while n < NOTIFICATIONS:
-                        if device.wait_for_notifications(0.05):
-                            n += 1
-
-                    # Disabling notifications.
-                    device.disable_notifications(feature)
-                    feature.remove_listener(feature_listener)
-                    
-                    if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
-                        device.disable_notifications(audioSyncFeature)
-                        audioSyncFeature.remove_listener(audioSyncFeature_listener)
-                    elif feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
-                        device.disable_notifications(audioFeature)
-                        audioFeature.remove_listener(audioFeature_listener)
-
-        except BTLEException as e:
-            print(e)
-            # Exiting.
-            print('Exiting...\n')
-            sys.exit(0)
-        except KeyboardInterrupt:
-            try:
-                # Exiting.
-                print('\nExiting...\n')
-                sys.exit(0)
-            except SystemExit:
-                os._exit(0)
+        # Listing discovered devices.
+        if not devices:
+            print('\nNo Bluetooth devices found.')
+        else:
+            print('\nAvailable Bluetooth devices:')
+            i = 1
+            device_found = False
+            for device in devices:
+                device_name = device.get_name()
+                print('%d) %s: [%s]' % (i, device.get_name(), device.get_tag()))
+                if device_name is "IOT_DEVICE":
+                    device_found = True
+                    print("IOT_DEVICE device found!")
+                i += 1
 
         while True:
             time.sleep(1)
