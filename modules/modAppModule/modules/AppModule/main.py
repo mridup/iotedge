@@ -189,6 +189,70 @@ def main(protocol):
                     print("IOT_DEVICE device found!")
                 i += 1
 
+        # Selecting a device.
+        # Connecting to the device.
+        node_listener = MyNodeListener()
+        device.add_listener(node_listener)
+        print('\nConnecting to %s...' % (device.get_name()))
+        device.connect()
+        print('Connection done.')
+        #else:
+        #    manager.remove_listener(manager_listener)
+        #    print('IOT_DEVICE not found!')
+        #    print('Exiting...\n')
+        #    sys.exit(0)
+
+        print('\nFeatures:')
+        i = 1
+        features = device.get_features()
+        audioFeature = None
+        audioSyncFeature = None
+        for feature in features:
+            if not feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
+                if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
+                    audioFeature = feature
+                    print('%d,%d) %s' % (i,i+1, "Audio & Sync"))
+                else:
+                    print('%d) %s' % (i, feature.get_name()))
+                i+=1
+            else:
+                audioSyncFeature = feature
+
+        choice = 7
+        feature = features[choice - 1]
+
+        # Enabling notifications.
+        feature_listener = MyFeatureListener()
+        feature.add_listener(feature_listener)
+        device.enable_notifications(feature)
+
+        if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
+            audioSyncFeature_listener = MyFeatureListener()
+            audioSyncFeature.add_listener(audioSyncFeature_listener)
+            device.enable_notifications(audioSyncFeature)
+        elif feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
+            audioFeature_listener = MyFeatureListener()
+            audioFeature.add_listener(audioFeature_listener)
+            device.enable_notifications(audioFeature)
+
+        # Getting notifications.
+        n=0
+        while n < NOTIFICATIONS:
+            if device.wait_for_notifications(0.05):
+                n += 1
+
+        #Disable notifications
+        device.disable_notifications(feature)
+        feature.remove_listener(feature_listener)
+
+        if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
+            device.disable_notifications(audioSyncFeature)
+            audioSyncFeature.remove_listener(audioSyncFeature_listener)
+        elif feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
+            device.disable_notifications(audioFeature)
+            audioFeature.remove_listener(audioFeature_listener)
+
+
         while True:
             time.sleep(1)
 
