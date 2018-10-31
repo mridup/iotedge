@@ -19,6 +19,8 @@ from blue_st_sdk.features.feature_audio_adpcm import FeatureAudioADPCM
 from blue_st_sdk.features.feature_audio_adpcm_sync import FeatureAudioADPCMSync
 from bluepy.btle import BTLEException
 
+from hubmanager.hubmanager import *
+
 # INTERFACES
 
 #
@@ -73,6 +75,11 @@ class MyNodeListener(NodeListener):
 class MyFeatureListener(FeatureListener):
 
     num = 0
+    
+    #def __init__(self, hubmanager):
+    #    self.hubmanager = hubmanager
+    #    print("MyFeatureListener initialized with hubmanager")
+
     #
     # To be called whenever the feature updates its data.
     #
@@ -82,6 +89,7 @@ class MyFeatureListener(FeatureListener):
     def on_update(self, feature, sample):
         #if(self.num < NOTIFICATIONS):
         print(feature)
+        send_event_to_output("temperatureOutput", "temperature: 34", {"temperatureAlert":'true'}, 0)
         self.num += 1
 
 # Bluetooth Scanning time in seconds.
@@ -130,35 +138,35 @@ def receive_message_callback(message, hubManager):
     return IoTHubMessageDispositionResult.ACCEPTED
 
 
-class HubManager(object):
-
-    def __init__(
-            self,
-            protocol=IoTHubTransportProvider.MQTT):
-        self.client_protocol = protocol
-        self.client = IoTHubModuleClient()
-        self.client.create_from_environment(protocol)
+#class HubManager(object):
+#
+#    def __init__(
+#            self,
+#            protocol=IoTHubTransportProvider.MQTT):
+#        self.client_protocol = protocol
+        #self.client = IoTHubModuleClient()
+        #self.client.create_from_environment(protocol)
 
         # set the time until a message times out
-        self.client.set_option("messageTimeout", MESSAGE_TIMEOUT)
+        #self.client.set_option("messageTimeout", MESSAGE_TIMEOUT)
         
         # sets the callback when a message arrives on "input1" queue.  Messages sent to 
         # other inputs or to the default will be silently discarded.
-        self.client.set_message_callback("input1", receive_message_callback, self)
+        #self.client.set_message_callback("input1", receive_message_callback, self)
 
     # Forwards the message received onto the next stage in the process.
-    def forward_event_to_output(self, outputQueueName, event, send_context):
-        self.client.send_event_async(
-            outputQueueName, event, send_confirmation_callback, send_context)
+#    def forward_event_to_output(self, outputQueueName, event, send_context):
+#        self.client.send_event_async(
+#            outputQueueName, event, send_confirmation_callback, send_context)
 
 def main(protocol):
     try:
         print ( "\nPython %s\n" % sys.version )
         print ( "modAppModule" )
 
-        hub_manager = HubManager(protocol)
+        initialize_client(IoTHubTransportProvider.MQTT)
 
-        print ( "Starting the IoT Hub Python sample using protocol %s..." % hub_manager.client_protocol )
+        print ( "Starting the IoT Hub Python sample using protocol MQTT...")
         print ( "The sample is now waiting for messages and will indefinitely.  Press Ctrl-C to exit. ")
 
         # Creating Bluetooth Manager.
@@ -238,6 +246,7 @@ def main(protocol):
             audioFeature.add_listener(audioFeature_listener)
             device.enable_notifications(audioFeature)
 
+        print("Ready to receive notifications")
         # Getting notifications forever
         #n=0
         while True:
