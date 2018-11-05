@@ -2,6 +2,7 @@
 # Licensed under the MIT license. See LICENSE file in the project root for
 # full license information.
 
+import json
 import random
 import time
 import sys
@@ -18,6 +19,8 @@ MESSAGE_TIMEOUT = 10000
 # global counters
 RECEIVE_CALLBACKS = 0
 SEND_CALLBACKS = 0
+TEMPERATURE_THRESHOLD = 25
+TWIN_CALLBACKS = 0
 
 # Choose HTTP, AMQP or MQTT as transport protocol.  Currently only MQTT is supported.
 PROTOCOL = IoTHubTransportProvider.MQTT
