@@ -35,19 +35,39 @@ def send_confirmation_callback(message, result, user_context):
 
 # receive_message_callback is invoked when an incoming message arrives on the specified 
 # input queue (in the case of this sample, "input1").  Because this is a filter module, 
-# we will forward this message onto the "output1" queue.
+# we forward this message to the "output1" queue.
 def receive_message_callback(message, hubManager):
     global RECEIVE_CALLBACKS
+    global TEMPERATURE_THRESHOLD
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
-    print ( "    Data: <<<%s>>> & Size=%d" % (message_buffer[:size].decode('utf-8'), size) )
+    message_text = message_buffer[:size].decode('utf-8')
+    print ( "    Data: <<<%s>>> & Size=%d" % (message_text, size) )
     map_properties = message.properties()
     key_value_pair = map_properties.get_internals()
     print ( "    Properties: %s" % key_value_pair )
     RECEIVE_CALLBACKS += 1
     print ( "    Total calls received: %d" % RECEIVE_CALLBACKS )
+    data = json.loads(message_text)
+    if "machine" in data and "temperature" in data["machine"] and data["machine"]["temperature"] > TEMPERATURE_THRESHOLD:
+        map_properties.add("MessageType", "Alert")
+        print("Machine temperature %s exceeds threshold %s" % (data["machine"]["temperature"], TEMPERATURE_THRESHOLD))
     hubManager.forward_event_to_output("output1", message, 0)
     return IoTHubMessageDispositionResult.ACCEPTED
+
+
+# module_twin_callback is invoked when the module twin's desired properties are updated.
+def module_twin_callback(update_state, payload, user_context):
+    global TWIN_CALLBACKS
+    global TEMPERATURE_THRESHOLD
+    print ( "\nTwin callback called with:\nupdateStatus = %s\npayload = %s\ncontext = %s" % (update_state, payload, user_context) )
+    data = json.loads(payload)
+    if "desired" in data and "TemperatureThreshold" in data["desired"]:
+        TEMPERATURE_THRESHOLD = data["desired"]["TemperatureThreshold"]
+    if "TemperatureThreshold" in data:
+        TEMPERATURE_THRESHOLD = data["TemperatureThreshold"]
+    TWIN_CALLBACKS += 1
+    print ( "Total calls confirmed: %d\n" % TWIN_CALLBACKS )
 
 
 class HubManager(object):
@@ -66,19 +86,22 @@ class HubManager(object):
         # other inputs or to the default will be silently discarded.
         self.client.set_message_callback("input1", receive_message_callback, self)
 
+        # Sets the callback when a module twin's desired properties are updated.
+        self.client.set_module_twin_callback(module_twin_callback, self)
+
     # Forwards the message received onto the next stage in the process.
-    def forward_event_to_output(self, outputQueueName, event, properties, send_context):
+    def forward_event_to_output(self, outputQueueName, event, send_context):
         if not isinstance(event, IoTHubMessage):
             event = IoTHubMessage(bytearray(event, 'utf8'))
 
-        if len(properties) > 0:
-            prop_map = event.properties()
-            for key in properties:
-                prop_map.add_or_update(key, properties[key])
+        # if len(properties) > 0:
+        #     prop_map = event.properties()
+        #     for key in properties:
+        #         prop_map.add_or_update(key, properties[key])
 
         self.client.send_event_async(
             outputQueueName, event, send_confirmation_callback, send_context)
-            
+
 
 def main(protocol):
     try:
@@ -92,6 +115,8 @@ def main(protocol):
 
         while True:
             time.sleep(1)
+            # msg_properties = {}
+            # hub_manager.forward_event_to_output("tempOutput", "Hello Saale!", msg_properties, 0)
 
     except IoTHubError as iothub_error:
         print ( "Unexpected error %s from IoTHub" % iothub_error )
