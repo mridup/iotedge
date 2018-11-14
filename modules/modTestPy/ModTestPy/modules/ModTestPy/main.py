@@ -51,10 +51,10 @@ def receive_message_callback(message, hubManager):
     print ( "    Properties: %s" % key_value_pair )
     RECEIVE_CALLBACKS += 1
     print ( "    Total calls received: %d" % RECEIVE_CALLBACKS )
-    data = json.loads(message_text)
-    if "machine" in data and "temperature" in data["machine"] and data["machine"]["temperature"] > TEMPERATURE_THRESHOLD:
-        map_properties.add("MessageType", "Alert")
-        print("Machine temperature %s exceeds threshold %s" % (data["machine"]["temperature"], TEMPERATURE_THRESHOLD))
+    #data = json.loads(message_text)
+    #if "machine" in data and "temperature" in data["machine"] and data["machine"]["temperature"] > TEMPERATURE_THRESHOLD:
+    #    map_properties.add("MessageType", "Alert")
+    #    print("Machine temperature %s exceeds threshold %s" % (data["machine"]["temperature"], TEMPERATURE_THRESHOLD))
     hubManager.forward_event_to_output("output1", message, 0)
     return IoTHubMessageDispositionResult.ACCEPTED
 
