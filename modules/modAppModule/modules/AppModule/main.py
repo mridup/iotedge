@@ -89,7 +89,7 @@ class MyFeatureListener(FeatureListener):
     def on_update(self, feature, sample):
         #if(self.num < NOTIFICATIONS):
         print(feature)
-        send_event_to_output("temperatureOutput", "temperature: 34", {"temperatureAlert":'true'}, 0)
+        send_event_to_output("devOutput", "temperature: 34", {"temperatureAlert":'true'}, 0)
         self.num += 1
 
 # Bluetooth Scanning time in seconds.
