@@ -119,33 +119,6 @@ USER_CONTEXT = 0
 # Choose HTTP, AMQP or MQTT as transport protocol.  Currently only MQTT is supported.
 PROTOCOL = IoTHubTransportProvider.MQTT
 
-# Callback received when the message that we're forwarding is processed.
-def send_confirmation_callback(message, result, user_context):
-    global SEND_CALLBACKS
-    print ( "Confirmation[%d] received for message with result = %s" % (user_context, result) )
-    map_properties = message.properties()
-    key_value_pair = map_properties.get_internals()
-    print ( "    Properties: %s" % key_value_pair )
-    SEND_CALLBACKS += 1
-    print ( "    Total calls confirmed: %d" % SEND_CALLBACKS )
-
-
-# receive_message_callback is invoked when an incoming message arrives on the specified 
-# input queue (in the case of this sample, "BLEAppInput1").
-# We will write to the BLE1 feature being used
-def receive_message_callback(message, hubManager):
-    global RECEIVE_CALLBACKS
-    message_buffer = message.get_bytearray()
-    size = len(message_buffer)
-    print ( "    Data: <<<%s>>> & Size=%d" % (message_buffer[:size].decode('utf-8'), size) )
-    map_properties = message.properties()
-    key_value_pair = map_properties.get_internals()
-    print ( "    Properties: %s" % key_value_pair )
-    RECEIVE_CALLBACKS += 1
-    print ( "    Total calls received: %d" % RECEIVE_CALLBACKS )
-    hubManager.forward_event_to_output("output1", message, 0)
-    return IoTHubMessageDispositionResult.ACCEPTED
-
 
 def receive_ble1_message_callback(message, user_context):
         print ("received message on device 1!!")
@@ -156,27 +129,6 @@ def receive_ble1_message_callback(message, user_context):
         # iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
         # iot_device_2.enable_notifications(iot_device_2_feature_switch)
 
-
-#class HubManager(object):
-#
-#    def __init__(
-#            self,
-#            protocol=IoTHubTransportProvider.MQTT):
-#        self.client_protocol = protocol
-        #self.client = IoTHubModuleClient()
-        #self.client.create_from_environment(protocol)
-
-        # set the time until a message times out
-        #self.client.set_option("messageTimeout", MESSAGE_TIMEOUT)
-        
-        # sets the callback when a message arrives on "input1" queue.  Messages sent to 
-        # other inputs or to the default will be silently discarded.
-        #self.client.set_message_callback("input1", receive_message_callback, self)
-
-    # Forwards the message received onto the next stage in the process.
-#    def forward_event_to_output(self, outputQueueName, event, send_context):
-#        self.client.send_event_async(
-#            outputQueueName, event, send_confirmation_callback, send_context)
 
 def main(protocol):
     try:
