@@ -39,7 +39,16 @@ Issues and important points to note for RPi:
  6. Make sure to always use unbuffered output in python command in dockerfile: CMD ["python", "-u", "main.py"] as python by default will always buffer the output and "docker logs <container>" will not show any logs in this case. 
 So CMD ["python", "main.py"] will show no logs!
    
-   
+ 7. The BLE App module(which uses the host network with root previleges) stops working after some hours (maybe around 24 hrs). basically the module looses the 'root' previledges and the module is not able to run the BLE scan network commands. There is no solution to this at this point. Only way to resolve this is:
+    i) Reboot your RPi
+   ii) Uninstall/Delete the module which is not running (e.g. the BLE App module above) ( Can use "Set-Modules" from Azure portal)
+  iii) Re-install the same module again (again can use "Set-Modules from Azure Portal)
+  
+  8. EdgeHub routing of messages between modules and to/from IoT-Hub stops working after a few hours (again, happens overnight so no fixed time period when it fails). See https://github.com/Azure/iot-edge-v1/issues/619
+     Only Solution so far:
+     i) Re-install iotedge runtime!! (THIS IS A BIG PAIN!)
+  
+  
  
 
 
