@@ -21,6 +21,15 @@ from bluepy.btle import BTLEException
 
 from hubmanager.hubmanager import *
 
+BLE1_APPMOD_INPUT   = 'BLE1_App_Input'
+BLE2_APPMOD_INPUT   = 'BLE2_App_Input'
+BLE1_APPMOD_OUTPUT  = 'BLE1_App_Output'
+BLE2_APPMOD_OUTPUT  = 'BLE2_App_Output'
+BLE1_DEVMOD_INPUT   = 'BLE1_Input'
+BLE2_DEVMOD_INPUT   = 'BLE2_Input'
+BLE1_DEVMOD_OUTPUT  = 'BLE1_Output'
+BLE2_DEVMOD_OUTPUT  = 'BLE2_Output'
+
 # INTERFACES
 
 #
@@ -76,9 +85,7 @@ class MyFeatureListener(FeatureListener):
 
     num = 0
     
-    #def __init__(self, hubmanager):
-    #    self.hubmanager = hubmanager
-    #    print("MyFeatureListener initialized with hubmanager")
+    # def __init__(self):      
 
     #
     # To be called whenever the feature updates its data.
@@ -89,8 +96,9 @@ class MyFeatureListener(FeatureListener):
     def on_update(self, feature, sample):
         #if(self.num < NOTIFICATIONS):
         print(feature)
-        send_event_to_output("devOutput", "temperature: 34", {"temperatureAlert":'true'}, 0)
+        send_event_to_output(BLE1_APPMOD_OUTPUT, "temperature: 34", {"temperatureAlert":'true'}, 0)
         self.num += 1
+
 
 # Bluetooth Scanning time in seconds.
 SCANNING_TIME_s = 5
@@ -106,6 +114,7 @@ MESSAGE_TIMEOUT = 10000
 # global counters
 RECEIVE_CALLBACKS = 0
 SEND_CALLBACKS = 0
+USER_CONTEXT = 0
 
 # Choose HTTP, AMQP or MQTT as transport protocol.  Currently only MQTT is supported.
 PROTOCOL = IoTHubTransportProvider.MQTT
@@ -122,8 +131,8 @@ def send_confirmation_callback(message, result, user_context):
 
 
 # receive_message_callback is invoked when an incoming message arrives on the specified 
-# input queue (in the case of this sample, "input1").  Because this is a filter module, 
-# we will forward this message onto the "output1" queue.
+# input queue (in the case of this sample, "BLEAppInput1").
+# We will write to the BLE1 feature being used
 def receive_message_callback(message, hubManager):
     global RECEIVE_CALLBACKS
     message_buffer = message.get_bytearray()
@@ -136,6 +145,16 @@ def receive_message_callback(message, hubManager):
     print ( "    Total calls received: %d" % RECEIVE_CALLBACKS )
     hubManager.forward_event_to_output("output1", message, 0)
     return IoTHubMessageDispositionResult.ACCEPTED
+
+
+def receive_ble1_message_callback(message, user_context):
+        print ("received message on device 1!!")
+        print ("user-context {}".format(user_context))
+        # TODO From here we send switch info back to BLE device, e.g.
+        # Writing switch status.
+        # iot_device_2.disable_notifications(iot_device_2_feature_switch)
+        # iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
+        # iot_device_2.enable_notifications(iot_device_2_feature_switch)
 
 
 #class HubManager(object):
@@ -162,12 +181,16 @@ def receive_message_callback(message, hubManager):
 def main(protocol):
     try:
         print ( "\nPython %s\n" % sys.version )
-        print ( "modAppModule" )
+        print ( "BLEModApp" )
 
         initialize_client(IoTHubTransportProvider.MQTT)
+        set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, USER_CONTEXT)
 
-        print ( "Starting the IoT Hub Python sample using protocol MQTT...")
-        print ( "The sample is now waiting for messages and will indefinitely.  Press Ctrl-C to exit. ")
+        print ( "Starting the BLEModApp module using protocol MQTT...")
+        print ( "This module will listen for feature changes of 2 BLE devices")
+        print ( "and forward the messages to respective BLE dev module. It will also listen for")
+        print ( "incoming route messages and subsequently on reception,")
+        print ( "act on the feature of the respective BLE devices")
 
         # Creating Bluetooth Manager.
         manager = Manager.instance()

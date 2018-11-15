@@ -26,8 +26,10 @@ def initialize_client(protocol):
     # client.set_option("logtrace", 1)
 
 
-# Sends a message to the queue with outputQueueName, "temperatureOutput" in the case of the sample.
 def send_event_to_output(outputQueueName, event, properties, send_context):
+    """
+    Sends a message to the queue with outputQueueName
+    """
     if not isinstance(event, IoTHubMessage):
         event = IoTHubMessage(bytearray(event, 'utf8'))
 
@@ -39,6 +41,7 @@ def send_event_to_output(outputQueueName, event, properties, send_context):
     client.send_event_async(
         outputQueueName, event, send_confirmation_callback, send_context)
 
+
 def send_confirmation_callback(message, result, user_context):
     global SEND_CALLBACKS
     print ( "MPD: Confirmation[%d] received for message with result = %s" % (user_context, result) )
@@ -47,6 +50,13 @@ def send_confirmation_callback(message, result, user_context):
     print ( "    Properties: %s" % key_value_pair )
     SEND_CALLBACKS += 1
     print ( "    Total calls confirmed: %d" % SEND_CALLBACKS )
+
+
+def set_message_callback(inputQueue, msg_callback, user_context):
+    """
+    Set a callback for an incoming module message
+    """
+    client.set_message_callback(inputQueue, msg_callback, user_context)
 
 
 def set_instance(instance):
