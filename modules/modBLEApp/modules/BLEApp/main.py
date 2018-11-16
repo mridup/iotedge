@@ -15,11 +15,11 @@ from iothub_client import IoTHubMessage, IoTHubMessageDispositionResult, IoTHubE
 from blue_st_sdk.manager import Manager, ManagerListener
 from blue_st_sdk.node import NodeListener
 from blue_st_sdk.feature import FeatureListener
-from blue_st_sdk.features.feature_audio_adpcm import FeatureAudioADPCM
-from blue_st_sdk.features.feature_audio_adpcm_sync import FeatureAudioADPCMSync
+from blue_st_sdk.features import *
 from bluepy.btle import BTLEException
 
 from hubmanager.hubmanager import *
+from enum import Enum
 
 BLE1_APPMOD_INPUT   = 'BLE1_App_Input'
 BLE2_APPMOD_INPUT   = 'BLE2_App_Input'
@@ -29,6 +29,11 @@ BLE1_DEVMOD_INPUT   = 'BLE1_Input'
 BLE2_DEVMOD_INPUT   = 'BLE2_Input'
 BLE1_DEVMOD_OUTPUT  = 'BLE1_Output'
 BLE2_DEVMOD_OUTPUT  = 'BLE2_Output'
+
+# Status of the switch.
+class SwitchStatus(Enum):
+    OFF = 0
+    ON = 1
 
 # INTERFACES
 
@@ -103,6 +108,10 @@ class MyFeatureListener(FeatureListener):
 # Bluetooth Scanning time in seconds.
 SCANNING_TIME_s = 5
 
+# Bluetooth Low Energy devices' MAC address.
+IOT_DEVICE_1_MAC = 'd8:9a:e3:f0:12:d7'
+IOT_DEVICE_2_MAC = 'd7:90:95:be:58:7e' # TODO device 2 not set yet
+
 # Number of notifications to get before disabling them.
 NOTIFICATIONS = 3
 
@@ -138,6 +147,15 @@ def main(protocol):
         initialize_client(IoTHubTransportProvider.MQTT)
         set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, USER_CONTEXT)
 
+        # Global variables.
+        global iot_device_1, iot_device_2
+        global iot_device_1_feature_switch, iot_device_2_feature_switch
+        global iot_device_1_status, iot_device_2_status
+
+        # Initial state.
+        iot_device_1_status = SwitchStatus.OFF
+        iot_device_2_status = SwitchStatus.OFF
+
         print ( "Starting the BLEModApp module using protocol MQTT...")
         print ( "This module will listen for feature changes of 2 BLE devices")
         print ( "and forward the messages to respective BLE dev module. It will also listen for")
@@ -152,97 +170,79 @@ def main(protocol):
         while True:
             # Synchronous discovery of Bluetooth devices.
             print('Scanning Bluetooth devices...\n')
-            manager.discover(False, SCANNING_TIME_s)
+            manager.discover(False, float(SCANNING_TIME_s))
 
             # Getting discovered devices.
             print('Getting node device...\n')
-            devices = manager.get_nodes()
+            discovered_devices = manager.get_nodes()
 
             # Listing discovered devices.
-            if not devices:
+            if not discovered_devices:
                 print('\nNo Bluetooth devices found.')
                 continue
             else:
                 print('\nAvailable Bluetooth devices:')
+                # Checking discovered devices.
+                devices = []
                 i = 1
                 device_found = False
-                for device in devices:
-                    device_name = device.get_name()
-                    print('%d) %s: [%s]' % (i, device.get_name(), device.get_tag()))
-                    if device_name is "IOT_DEVICE":
+                for discovered in discovered_devices:
+                    device_name = discovered.get_name()
+                    print('%d) %s: [%s]' % (i, discovered.get_name(), discovered.get_tag()))
+                    if discovered.get_tag() == IOT_DEVICE_1_MAC:
+                        iot_device_1 = discovered
                         device_found = True
+                        devices.append(iot_device_1)
                         print("IOT_DEVICE device found!")
+                    elif discovered.get_tag() == IOT_DEVICE_2_MAC:
+                        iot_device_2 = discovered
+                        devices.append(iot_device_2)
+                    if len(devices) == 1:
+                        break
                     i += 1
                 break
 
         # Selecting a device.
-        # Connecting to the device.
-        node_listener = MyNodeListener()
-        device.add_listener(node_listener)
-        print('\nConnecting to %s...' % (device.get_name()))
-        device.connect()
-        print('Connection done.')
-        #else:
-        #    manager.remove_listener(manager_listener)
-        #    print('IOT_DEVICE not found!')
-        #    print('Exiting...\n')
-        #    sys.exit(0)
+        # Connecting to the devices.
+        for device in devices:
+            device.add_listener(MyNodeListener())
+            print('Connecting to %s...' % (device.get_name()))
+            device.connect()
+            print('Connection done.')
 
-        print('\nFeatures:')
-        i = 1
-        features = device.get_features()
-        audioFeature = None
-        audioSyncFeature = None
-        for feature in features:
-            if not feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
-                if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
-                    audioFeature = feature
-                    print('%d,%d) %s' % (i,i+1, "Audio & Sync"))
-                else:
-                    print('%d) %s' % (i, feature.get_name()))
-                i+=1
-            else:
-                audioSyncFeature = feature
+        # Getting features.
+        print('\nGetting features...')
+        iot_device_1_feature_switch = iot_device_1.get_feature(feature_switch.FeatureSwitch)
 
-        choice = 7
-        feature = features[choice - 1]
+        # Resetting switches.
+        print('Resetting switches...')
+        iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
+
+        # Handling sensing and actuation of switch devices.
+        iot_device_1_feature_switch.add_listener(MyFeatureListener())
 
         # Enabling notifications.
-        feature_listener = MyFeatureListener()
-        feature.add_listener(feature_listener)
-        device.enable_notifications(feature)
+        print('Enabling Bluetooth notifications...')
+        iot_device_1.enable_notifications(iot_device_1_feature_switch)
 
-        if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
-            audioSyncFeature_listener = MyFeatureListener()
-            audioSyncFeature.add_listener(audioSyncFeature_listener)
-            device.enable_notifications(audioSyncFeature)
-        elif feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
-            audioFeature_listener = MyFeatureListener()
-            audioFeature.add_listener(audioFeature_listener)
-            device.enable_notifications(audioFeature)
-
-        print("Ready to receive notifications")
         # Getting notifications forever
-        #n=0
+        print("Ready to receive notifications")        
+
+        # Bluetooth setup complete.
+        print('\nBluetooth setup complete.')
+
+        # Demo running.
+        print('\nDemo running (\"CTRL+C\" to quit)...\n')
+
+        # Infinite loop.
         while True:
-            if device.wait_for_notifications(0.05):
-                print("rcvd notification")
-
-        #Disable notifications
-        #device.disable_notifications(feature)
-        #feature.remove_listener(feature_listener)
-
-        #if feature.get_name() == FeatureAudioADPCM.FEATURE_NAME:
-        #    device.disable_notifications(audioSyncFeature)
-        #    audioSyncFeature.remove_listener(audioSyncFeature_listener)
-        #elif feature.get_name() == FeatureAudioADPCMSync.FEATURE_NAME:
-        #    device.disable_notifications(audioFeature)
-        #    audioFeature.remove_listener(audioFeature_listener)
-
-
-        while True:
-            time.sleep(1)
-
+            # Getting notifications.
+            if iot_device_1.wait_for_notifications(0.05):
+                continue
+    except BTLEException as e:
+        print(e)
+        print('Exiting...\n')
+        sys.exit(0)        
     except IoTHubError as iothub_error:
         print ( "Unexpected error %s from IoTHub" % iothub_error )
         return
