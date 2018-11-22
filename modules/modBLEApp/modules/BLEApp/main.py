@@ -6,6 +6,7 @@ import random
 import time
 import sys
 import os
+import json
 import blue_st_sdk
 import iothub_client
 # pylint: disable=E0611
@@ -101,7 +102,11 @@ class MyFeatureListener(FeatureListener):
     def on_update(self, feature, sample):
         #if(self.num < NOTIFICATIONS):
         print(feature)
-        send_event_to_output(BLE1_APPMOD_OUTPUT, "temperature: 34", {"temperatureAlert":'true'}, 0)
+        print('sample:')
+        sample_str = sample.__str__()
+        print(sample_str)
+        # json_sample = json.dumps(sample)
+        send_event_to_output(BLE1_APPMOD_OUTPUT, sample_str, {"temperatureAlert":'true'}, 0)
         self.num += 1
 
 
@@ -110,10 +115,13 @@ SCANNING_TIME_s = 5
 
 # Bluetooth Low Energy devices' MAC address.
 IOT_DEVICE_1_MAC = 'd8:9a:e3:f0:12:d7'
-IOT_DEVICE_2_MAC = 'd7:90:95:be:58:7e' # TODO device 2 not set yet
+IOT_DEVICE_2_MAC = 'cd:09:26:cd:a7:f8' # TODO device 2 not set yet
 
 # Number of notifications to get before disabling them.
 NOTIFICATIONS = 3
+
+# Number of node devices
+NUM_DEVICES = 2
 
 # messageTimeout - the maximum time in milliseconds until a message times out.
 # The timeout period starts at IoTHubModuleClient.send_event_async.
@@ -130,13 +138,50 @@ PROTOCOL = IoTHubTransportProvider.MQTT
 
 
 def receive_ble1_message_callback(message, user_context):
-        print ("received message on device 1!!")
-        print ("user-context {}".format(user_context))
-        # TODO From here we send switch info back to BLE device, e.g.
-        # Writing switch status.
-        # iot_device_2.disable_notifications(iot_device_2_feature_switch)
-        # iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
-        # iot_device_2.enable_notifications(iot_device_2_feature_switch)
+    print ("received message on device 1!!")
+    print ("sample {}".format(message))
+
+    global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
+    # iot_device_1_status = SwitchStatus.OFF
+    # Getting value.
+    # sample = json.loads(message)
+    message_buffer = message.get_bytearray()
+    size = len(message_buffer)
+    message_text = message_buffer[:size].decode('utf-8')
+    print ("module receive_ble1 message:")
+    data = message_text.split()[3]
+    print ('data arrived:')
+    print (data)
+    
+    # switch_status = feature_switch.FeatureSwitch.get_switch_status(sample)
+
+    # Toggle switch status.
+    iot_device_1_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
+    
+    # Writing switch status.
+    iot_device_1.disable_notifications(iot_device_1_feature_switch)
+    iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
+    iot_device_1.enable_notifications(iot_device_1_feature_switch)
+
+
+def receive_ble2_message_callback(message, user_context):
+    print ("received message on device 2!!")
+    print ("user-context {}".format(user_context))
+
+    global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
+    # iot_device_1_status = SwitchStatus.OFF
+    # Getting value.
+    print ("module receive_ble2 message:")
+    print (message)
+    switch_status = feature_switch.FeatureSwitch.get_switch_status(message)
+
+    # Toggle switch status.
+    iot_device_1_status = SwitchStatus.ON if switch_status != 0 else SwitchStatus.OFF
+    
+    # Writing switch status.
+    iot_device_1.disable_notifications(iot_device_1_feature_switch)
+    iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
+    iot_device_1.enable_notifications(iot_device_1_feature_switch)
 
 
 def main(protocol):
@@ -146,6 +191,7 @@ def main(protocol):
 
         initialize_client(IoTHubTransportProvider.MQTT)
         set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, USER_CONTEXT)
+        set_message_callback(BLE2_APPMOD_INPUT, receive_ble2_message_callback, USER_CONTEXT)
 
         # Global variables.
         global iot_device_1, iot_device_2
@@ -185,18 +231,17 @@ def main(protocol):
                 # Checking discovered devices.
                 devices = []
                 i = 1
-                device_found = False
                 for discovered in discovered_devices:
                     device_name = discovered.get_name()
                     print('%d) %s: [%s]' % (i, discovered.get_name(), discovered.get_tag()))
-                    if discovered.get_tag() == IOT_DEVICE_1_MAC:
+                    if discovered.get_tag() == IOT_DEVICE_2_MAC: # IOT_DEVICE_1_MAC:
                         iot_device_1 = discovered
-                        device_found = True
                         devices.append(iot_device_1)
-                        print("IOT_DEVICE device found!")
-                    elif discovered.get_tag() == IOT_DEVICE_2_MAC:
+                        print("IOT_DEVICE device 1 found!")
+                    elif discovered.get_tag() == IOT_DEVICE_1_MAC:
                         iot_device_2 = discovered
                         devices.append(iot_device_2)
+                        print("IOT_DEVICE device 2 found!")
                     if len(devices) == 1:
                         break
                     i += 1
@@ -213,17 +258,21 @@ def main(protocol):
         # Getting features.
         print('\nGetting features...')
         iot_device_1_feature_switch = iot_device_1.get_feature(feature_switch.FeatureSwitch)
+        # iot_device_2_feature_switch = iot_device_2.get_feature(feature_switch.FeatureSwitch)
 
         # Resetting switches.
         print('Resetting switches...')
         iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
+        # iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
 
         # Handling sensing and actuation of switch devices.
         iot_device_1_feature_switch.add_listener(MyFeatureListener())
+        # iot_device_2_feature_switch.add_listener(MyFeatureListener())
 
         # Enabling notifications.
         print('Enabling Bluetooth notifications...')
         iot_device_1.enable_notifications(iot_device_1_feature_switch)
+        # iot_device_2.enable_notifications(iot_device_2_feature_switch)
 
         # Getting notifications forever
         print("Ready to receive notifications")        
