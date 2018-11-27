@@ -141,27 +141,23 @@ def receive_ble1_message_callback(message, user_context):
     print ("received message on device 1!!")
     print ("sample {}".format(message))
 
-    global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
-    # iot_device_1_status = SwitchStatus.OFF
-    # Getting value.
-    # sample = json.loads(message)
+    global iot_device_2, iot_device_2_feature_switch, iot_device_2_status
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
-    print ("module receive_ble1 message:")
+    print ("module receive_ble1 message: {}".format(message_text))
     data = message_text.split()[3]
-    print ('data arrived:')
+    print ('data part:')
     print (data)
     
-    # switch_status = feature_switch.FeatureSwitch.get_switch_status(sample)
-
     # Toggle switch status.
-    iot_device_1_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
+    iot_device_2_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
     
     # Writing switch status.
-    iot_device_1.disable_notifications(iot_device_1_feature_switch)
-    iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
-    iot_device_1.enable_notifications(iot_device_1_feature_switch)
+    iot_device_2.disable_notifications(iot_device_2_feature_switch)
+    iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
+    iot_device_2.enable_notifications(iot_device_2_feature_switch)
+    print ("exiting receive_ble1_message_callback...")
 
 
 def receive_ble2_message_callback(message, user_context):
@@ -234,15 +230,15 @@ def main(protocol):
                 for discovered in discovered_devices:
                     device_name = discovered.get_name()
                     print('%d) %s: [%s]' % (i, discovered.get_name(), discovered.get_tag()))
-                    if discovered.get_tag() == IOT_DEVICE_2_MAC: # IOT_DEVICE_1_MAC:
+                    if discovered.get_tag() == IOT_DEVICE_1_MAC:
                         iot_device_1 = discovered
                         devices.append(iot_device_1)
                         print("IOT_DEVICE device 1 found!")
-                    elif discovered.get_tag() == IOT_DEVICE_1_MAC:
+                    elif discovered.get_tag() == IOT_DEVICE_2_MAC:
                         iot_device_2 = discovered
                         devices.append(iot_device_2)
                         print("IOT_DEVICE device 2 found!")
-                    if len(devices) == 1:
+                    if len(devices) == 2:
                         break
                     i += 1
                 break
@@ -258,12 +254,12 @@ def main(protocol):
         # Getting features.
         print('\nGetting features...')
         iot_device_1_feature_switch = iot_device_1.get_feature(feature_switch.FeatureSwitch)
-        # iot_device_2_feature_switch = iot_device_2.get_feature(feature_switch.FeatureSwitch)
+        iot_device_2_feature_switch = iot_device_2.get_feature(feature_switch.FeatureSwitch)
 
         # Resetting switches.
         print('Resetting switches...')
         iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
-        # iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
+        iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
 
         # Handling sensing and actuation of switch devices.
         iot_device_1_feature_switch.add_listener(MyFeatureListener())
@@ -287,7 +283,13 @@ def main(protocol):
         while True:
             # Getting notifications.
             if iot_device_1.wait_for_notifications(0.05):
-                continue
+                print("rcvd notification!")
+        
+        print ("...going out...")
+
+        while True:
+            sleep(1)
+
     except BTLEException as e:
         print(e)
         print('Exiting...\n')
