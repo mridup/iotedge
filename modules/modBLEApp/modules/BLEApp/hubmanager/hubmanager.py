@@ -7,8 +7,7 @@ from iothub_client import IoTHubMessage, IoTHubMessageDispositionResult, IoTHubE
 # By default, messages do not expire.
 MESSAGE_TIMEOUT = 10000
 
-# global counters
-SEND_CALLBACKS = 0
+
 
 hub_manager = None
 
@@ -26,7 +25,7 @@ def initialize_client(protocol):
     # client.set_option("logtrace", 1)
 
 
-def send_event_to_output(outputQueueName, event, properties, send_context):
+def send_event_to_output(outputQueueName, event, cnf_callback, properties, send_context):
     """
     Sends a message to the queue with outputQueueName
     """
@@ -39,17 +38,7 @@ def send_event_to_output(outputQueueName, event, properties, send_context):
             prop_map.add_or_update(key, properties[key])
 
     client.send_event_async(
-        outputQueueName, event, send_confirmation_callback, send_context)
-
-
-def send_confirmation_callback(message, result, user_context):
-    global SEND_CALLBACKS
-    print ( "MPD: Confirmation[%d] received for message with result = %s" % (user_context, result) )
-    map_properties = message.properties()
-    key_value_pair = map_properties.get_internals()
-    print ( "    Properties: %s" % key_value_pair )
-    SEND_CALLBACKS += 1
-    print ( "    Total calls confirmed: %d" % SEND_CALLBACKS )
+        outputQueueName, event, cnf_callback, send_context)
 
 
 def set_message_callback(inputQueue, msg_callback, user_context):
