@@ -150,13 +150,10 @@ def send_confirmation_callback(message, result, user_context):
     # SEND_CALLBACKS += 1
     # print ( "    Total calls confirmed: %d" % SEND_CALLBACKS )
 
-# Global variables.
-global iot_device_1, iot_device_2
-global iot_device_1_feature_switch, iot_device_2_feature_switch
-global iot_device_1_status, iot_device_2_status
 
 def receive_message_callback(message, hubManager):
     global RECEIVE_CALLBACKS
+    global iot_device_2, iot_device_2_feature_switch, iot_device_2_status
     TEMPERATURE_THRESHOLD = 25
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
@@ -166,6 +163,15 @@ def receive_message_callback(message, hubManager):
     data = message_text.split()[3]
     print ('data part:')
     print (data)
+
+    # Toggle switch status.
+    iot_device_2_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
+    
+    # Writing switch status.
+    iot_device_2.disable_notifications(iot_device_2_feature_switch)
+    iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
+    iot_device_2.enable_notifications(iot_device_2_feature_switch)
+
     # hubManager.forward_event_to_output("randomoutput1", message, 0)
     return IoTHubMessageDispositionResult.ACCEPTED
 
@@ -173,7 +179,8 @@ def receive_message_callback(message, hubManager):
 def receive_ble1_message_callback(message, hubManager):
     print ("received message on device 1!!")
     # print ("sample {}".format(message))
-    
+    global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
+
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
@@ -256,12 +263,16 @@ def main(protocol):
         print ( "\nPython %s\n" % sys.version )
         print ( "BLEModApp" )
 
+        # Global variables.
+        global iot_device_1, iot_device_2
+        global iot_device_1_feature_switch, iot_device_2_feature_switch
+        global iot_device_1_status, iot_device_2_status
+
+
         # initialize_client(IoTHubTransportProvider.MQTT)
         hub_manager = HubManager(protocol)
         # set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, USER_CONTEXT)
         # set_message_callback(BLE2_APPMOD_INPUT, receive_ble2_message_callback, USER_CONTEXT)
-
-        
 
         # Initial state.
         iot_device_1_status = SwitchStatus.OFF
