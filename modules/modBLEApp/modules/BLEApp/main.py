@@ -86,7 +86,7 @@ class MyNodeListener(NodeListener):
 # Implementation of the interface used by the Feature class to notify that a
 # feature has updated its data.
 #
-class MyFeatureListener(FeatureListener):
+class MyFeatureListenerBLE1(FeatureListener):
 
     num = 0
     
@@ -101,18 +101,31 @@ class MyFeatureListener(FeatureListener):
     #
     def on_update(self, feature, sample):
         #if(self.num < NOTIFICATIONS):
+        print('FeatureListerner update: feature: ')
         print(feature)
-        print('sample:')
         sample_str = sample.__str__()
-        print(sample_str)
+        print('sample data:' + sample_str)
 
         event = IoTHubMessage(bytearray(sample_str, 'utf8'))
-
-        # json_sample = json.dumps(sample)
-        # send_event_to_output(BLE1_APPMOD_OUTPUT, sample_str, send_confirmation_callback, {"temperatureAlert":'true'}, 0)
         self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
         self.num += 1
 
+
+class MyFeatureListenerBLE2(FeatureListener):
+    num = 0
+
+    def __init__(self, hubManager):
+        self.hubManager = hubManager
+
+    def on_update(self, feature, sample):
+        print('FeatureListernerBLE2 update: feature: ')
+        print(feature)
+        sample_str = sample.__str__()
+        print('sample data:' + sample_str)
+
+        event = IoTHubMessage(bytearray(sample_str, 'utf8'))
+        self.hubManager.forward_event_to_output(BLE2_APPMOD_OUTPUT, event, 0)
+        self.num += 1
 
 # Bluetooth Scanning time in seconds.
 SCANNING_TIME_s = 5
@@ -149,12 +162,37 @@ def send_confirmation_callback(message, result, user_context):
 
 def receive_ble1_message_callback(message, hubManager):
     global RECEIVE_CALLBACKS
-    global iot_device_2, iot_device_2_feature_switch, iot_device_2_status
+    global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
     TEMPERATURE_THRESHOLD = 25
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
     print('\nble1 receive msg cb << message: \n')
+    print(message_text)    
+    data = message_text.split()[3]
+    print ('data part:')
+    print (data)
+
+    # Toggle switch status.
+    iot_device_1_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
+    
+    # Writing switch status.
+    iot_device_1.disable_notifications(iot_device_1_feature_switch)
+    iot_device_1_feature_switch.write_switch_status(iot_device_2_status.value)
+    iot_device_1.enable_notifications(iot_device_1_feature_switch)
+
+    # hubManager.forward_event_to_output("randomoutput1", message, 0)
+    return IoTHubMessageDispositionResult.ACCEPTED
+
+
+def receive_ble2_message_callback(message, user_context):
+    global RECEIVE_CALLBACKS
+    global iot_device_2, iot_device_2_feature_switch, iot_device_2_status
+    # Getting value.
+    message_buffer = message.get_bytearray()
+    size = len(message_buffer)
+    message_text = message_buffer[:size].decode('utf-8')
+    print('\nble2 receive msg cb << message: \n')
     print(message_text)    
     data = message_text.split()[3]
     print ('data part:')
@@ -167,31 +205,8 @@ def receive_ble1_message_callback(message, hubManager):
     iot_device_2.disable_notifications(iot_device_2_feature_switch)
     iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
     iot_device_2.enable_notifications(iot_device_2_feature_switch)
-
-    # hubManager.forward_event_to_output("randomoutput1", message, 0)
-    return IoTHubMessageDispositionResult.ACCEPTED
-
-
-def receive_ble2_message_callback(message, user_context):
-    global RECEIVE_CALLBACKS
-    global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
-    # Getting value.
-    message_buffer = message.get_bytearray()
-    size = len(message_buffer)
-    message_text = message_buffer[:size].decode('utf-8')
-    print('\nble2 receive msg cb << message: \n')
-    print(message_text)    
-    data = message_text.split()[3]
-    print ('data part:')
-    print (data)
-
-    # Toggle switch status.
-    iot_device_1_status = SwitchStatus.ON if switch_status != 0 else SwitchStatus.OFF
     
-    # Writing switch status.
-    iot_device_1.disable_notifications(iot_device_1_feature_switch)
-    iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
-    iot_device_1.enable_notifications(iot_device_1_feature_switch)
+    return IoTHubMessageDispositionResult.ACCEPTED
 
 
 # module_twin_callback is invoked when the module twin's desired properties are updated.
@@ -307,8 +322,8 @@ def main(protocol):
         iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
 
         # Handling sensing and actuation of switch devices.
-        iot_device_1_feature_switch.add_listener(MyFeatureListener(hub_manager))
-        # iot_device_2_feature_switch.add_listener(MyFeatureListener())
+        iot_device_1_feature_switch.add_listener(MyFeatureListenerBLE1(hub_manager))
+        iot_device_2_feature_switch.add_listener(MyFeatureListenerBLE2(hub_manager))
 
         # Enabling notifications.
         print('Enabling Bluetooth notifications...')
