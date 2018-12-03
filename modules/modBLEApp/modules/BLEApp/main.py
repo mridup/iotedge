@@ -19,7 +19,6 @@ from blue_st_sdk.feature import FeatureListener
 from blue_st_sdk.features import *
 from bluepy.btle import BTLEException
 
-from hubmanager.hubmanager import *
 from enum import Enum
 
 BLE1_APPMOD_INPUT   = 'BLE1_App_Input'
@@ -143,22 +142,19 @@ PROTOCOL = IoTHubTransportProvider.MQTT
 
 def send_confirmation_callback(message, result, user_context):
     global SEND_CALLBACKS
-    print ( "MPD: Confirmation[%d] received for message with result = %s" % (user_context, result) )
-    # map_properties = message.properties()
-    # key_value_pair = map_properties.get_internals()
-    # print ( "    Properties: %s" % key_value_pair )
-    # SEND_CALLBACKS += 1
-    # print ( "    Total calls confirmed: %d" % SEND_CALLBACKS )
+    print ( "\nConfirmation[%d] received for message with result = %s" % (user_context, result) )
+    SEND_CALLBACKS += 1
+    print ( "Total calls confirmed: %d" % SEND_CALLBACKS )
 
 
-def receive_message_callback(message, hubManager):
+def receive_ble1_message_callback(message, hubManager):
     global RECEIVE_CALLBACKS
     global iot_device_2, iot_device_2_feature_switch, iot_device_2_status
     TEMPERATURE_THRESHOLD = 25
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
-    print('\nreceive msg cb << message: \n')
+    print('\nble1 receive msg cb << message: \n')
     print(message_text)    
     data = message_text.split()[3]
     print ('data part:')
@@ -176,38 +172,18 @@ def receive_message_callback(message, hubManager):
     return IoTHubMessageDispositionResult.ACCEPTED
 
 
-def receive_ble1_message_callback(message, hubManager):
-    print ("received message on device 1!!")
-    # print ("sample {}".format(message))
+def receive_ble2_message_callback(message, user_context):
+    global RECEIVE_CALLBACKS
     global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
-
+    # Getting value.
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
+    print('\nble2 receive msg cb << message: \n')
+    print(message_text)    
     data = message_text.split()[3]
     print ('data part:')
     print (data)
-    
-    # Toggle switch status.
-    # iot_device_2_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
-    
-    # # Writing switch status.
-    # iot_device_2.disable_notifications(iot_device_2_feature_switch)
-    # iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
-    # iot_device_2.enable_notifications(iot_device_2_feature_switch)
-    # print ("exiting receive_ble1_message_callback...")
-
-
-def receive_ble2_message_callback(message, user_context):
-    print ("received message on device 2!!")
-    print ("user-context {}".format(user_context))
-
-    global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
-    # iot_device_1_status = SwitchStatus.OFF
-    # Getting value.
-    print ("module receive_ble2 message:")
-    print (message)
-    switch_status = feature_switch.FeatureSwitch.get_switch_status(message)
 
     # Toggle switch status.
     iot_device_1_status = SwitchStatus.ON if switch_status != 0 else SwitchStatus.OFF
@@ -220,16 +196,7 @@ def receive_ble2_message_callback(message, user_context):
 
 # module_twin_callback is invoked when the module twin's desired properties are updated.
 def module_twin_callback(update_state, payload, user_context):
-    # global TWIN_CALLBACKS
-    # global TEMPERATURE_THRESHOLD
-    # print ( "\nTwin callback called with:\nupdateStatus = %s\npayload = %s\ncontext = %s" % (update_state, payload, user_context) )
-    # data = json.loads(payload)
-    # if "desired" in data and "TemperatureThreshold" in data["desired"]:
-    #     TEMPERATURE_THRESHOLD = data["desired"]["TemperatureThreshold"]
-    # if "TemperatureThreshold" in data:
-    #     TEMPERATURE_THRESHOLD = data["TemperatureThreshold"]
-    # TWIN_CALLBACKS += 1
-    print ( "\nTwin callback >> call confirmed\n")
+    print ( "\nModuel twin callback >> call confirmed\n")
 
 
 class HubManager(object):
@@ -246,7 +213,8 @@ class HubManager(object):
         
         # sets the callback when a message arrives on "input1" queue.  Messages sent to 
         # other inputs or to the default will be silently discarded.
-        self.client.set_message_callback(BLE1_APPMOD_INPUT, receive_message_callback, self)
+        self.client.set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, self)
+        self.client.set_message_callback(BLE2_APPMOD_INPUT, receive_ble2_message_callback, self)
 
         # Sets the callback when a module twin's desired properties are updated.
         self.client.set_module_twin_callback(module_twin_callback, self)
@@ -268,11 +236,8 @@ def main(protocol):
         global iot_device_1_feature_switch, iot_device_2_feature_switch
         global iot_device_1_status, iot_device_2_status
 
-
         # initialize_client(IoTHubTransportProvider.MQTT)
         hub_manager = HubManager(protocol)
-        # set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, USER_CONTEXT)
-        # set_message_callback(BLE2_APPMOD_INPUT, receive_ble2_message_callback, USER_CONTEXT)
 
         # Initial state.
         iot_device_1_status = SwitchStatus.OFF
