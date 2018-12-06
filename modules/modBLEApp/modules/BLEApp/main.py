@@ -101,7 +101,7 @@ class MyFeatureListenerBLE1(FeatureListener):
     #
     def on_update(self, feature, sample):
         #if(self.num < NOTIFICATIONS):
-        print('FeatureListerner update: feature: ')
+        print('\n>>FeatureListenerBLE1 update: feature: ')
         print(feature)
         sample_str = sample.__str__()
         print('sample data:' + sample_str)
@@ -118,7 +118,7 @@ class MyFeatureListenerBLE2(FeatureListener):
         self.hubManager = hubManager
 
     def on_update(self, feature, sample):
-        print('FeatureListernerBLE2 update: feature: ')
+        print('\n>>FeatureListenerBLE2 update: feature: ')
         print(feature)
         sample_str = sample.__str__()
         print('sample data:' + sample_str)
@@ -160,58 +160,54 @@ def send_confirmation_callback(message, result, user_context):
     print ( "Total calls confirmed: %d" % SEND_CALLBACKS )
 
 
-def receive_ble1_message_callback(message, hubManager):
+def receive_ble2_message_callback(message, hubManager):
     global RECEIVE_CALLBACKS
     global iot_device_1, iot_device_1_feature_switch, iot_device_1_status
     TEMPERATURE_THRESHOLD = 25
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
-    print('\nble1 receive msg cb << message: \n')
-    print(message_text)    
+    print('\nble2 receive msg cb << message: \n')
     data = message_text.split()[3]
-    print ('data part:')
-    print (data)
 
     # Toggle switch status.
     iot_device_1_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
     
+    print('\n>> sending toggle switch to BLE1: \n')
     # Writing switch status.
     iot_device_1.disable_notifications(iot_device_1_feature_switch)
-    iot_device_1_feature_switch.write_switch_status(iot_device_2_status.value)
+    iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
     iot_device_1.enable_notifications(iot_device_1_feature_switch)
 
     # hubManager.forward_event_to_output("randomoutput1", message, 0)
     return IoTHubMessageDispositionResult.ACCEPTED
 
 
-def receive_ble2_message_callback(message, user_context):
+def receive_ble1_message_callback(message, hubManager):
     global RECEIVE_CALLBACKS
     global iot_device_2, iot_device_2_feature_switch, iot_device_2_status
     # Getting value.
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
-    print('\nble2 receive msg cb << message: \n')
-    print(message_text)    
+    print('\nble1 receive msg cb << message: \n')    
     data = message_text.split()[3]
-    print ('data part:')
-    print (data)
 
     # Toggle switch status.
     iot_device_2_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
     
+    print('\n>> sending toggle switch to BLE2: \n')
     # Writing switch status.
     iot_device_2.disable_notifications(iot_device_2_feature_switch)
     iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
     iot_device_2.enable_notifications(iot_device_2_feature_switch)
-    
+
     return IoTHubMessageDispositionResult.ACCEPTED
 
 
 # module_twin_callback is invoked when the module twin's desired properties are updated.
 def module_twin_callback(update_state, payload, user_context):
-    print ( "\nModuel twin callback >> call confirmed\n")
+    print ( "\nModule twin callback >> call confirmed\n")
 
 
 class HubManager(object):
@@ -228,8 +224,9 @@ class HubManager(object):
         
         # sets the callback when a message arrives on "input1" queue.  Messages sent to 
         # other inputs or to the default will be silently discarded.
-        self.client.set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, self)
+        
         self.client.set_message_callback(BLE2_APPMOD_INPUT, receive_ble2_message_callback, self)
+        self.client.set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, self)
 
         # Sets the callback when a module twin's desired properties are updated.
         self.client.set_module_twin_callback(module_twin_callback, self)
@@ -328,7 +325,7 @@ def main(protocol):
         # Enabling notifications.
         print('Enabling Bluetooth notifications...')
         iot_device_1.enable_notifications(iot_device_1_feature_switch)
-        # iot_device_2.enable_notifications(iot_device_2_feature_switch)
+        iot_device_2.enable_notifications(iot_device_2_feature_switch)
 
         # Getting notifications forever
         print("Ready to receive notifications")        
@@ -342,13 +339,9 @@ def main(protocol):
         # Infinite loop.
         while True:
             # Getting notifications.
-            if iot_device_1.wait_for_notifications(0.05):
+            if iot_device_1.wait_for_notifications(0.05) or iot_device_2.wait_for_notifications(0.05):
                 print("rcvd notification!")
-        
-        print ("...going out...")
-
-        while True:
-            sleep(1)
+                continue
 
     except BTLEException as e:
         print(e)
