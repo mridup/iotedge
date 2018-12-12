@@ -101,10 +101,10 @@ class MyFeatureListenerBLE1(FeatureListener):
     #
     def on_update(self, feature, sample):
         #if(self.num < NOTIFICATIONS):
-        print('\n>>FeatureListenerBLE1 update: feature: ')
+        # print('\n>>FeatureListenerBLE1 update: feature: ')
         print(feature)
         sample_str = sample.__str__()
-        print('sample data:' + sample_str)
+        # print('sample data:' + sample_str)
 
         event = IoTHubMessage(bytearray(sample_str, 'utf8'))
         self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
@@ -118,10 +118,10 @@ class MyFeatureListenerBLE2(FeatureListener):
         self.hubManager = hubManager
 
     def on_update(self, feature, sample):
-        print('\n>>FeatureListenerBLE2 update: feature: ')
+        # print('\n>>FeatureListenerBLE2 update: feature: ')
         print(feature)
         sample_str = sample.__str__()
-        print('sample data:' + sample_str)
+        # print('sample data:' + sample_str)
 
         event = IoTHubMessage(bytearray(sample_str, 'utf8'))
         self.hubManager.forward_event_to_output(BLE2_APPMOD_OUTPUT, event, 0)
@@ -155,9 +155,9 @@ PROTOCOL = IoTHubTransportProvider.MQTT
 
 def send_confirmation_callback(message, result, user_context):
     global SEND_CALLBACKS
-    print ( "\nConfirmation[%d] received for message with result = %s" % (user_context, result) )
+    # print ( "\nConfirmation[%d] received for message with result = %s" % (user_context, result) )
     SEND_CALLBACKS += 1
-    print ( "Total calls confirmed: %d" % SEND_CALLBACKS )
+    # print ( "Total calls confirmed: %d" % SEND_CALLBACKS )
 
 
 def receive_ble2_message_callback(message, hubManager):
@@ -167,13 +167,13 @@ def receive_ble2_message_callback(message, hubManager):
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
-    print('\nble2 receive msg cb << message: \n')
+    # print('\nble2 receive msg cb << message: \n')
     data = message_text.split()[3]
 
     # Toggle switch status.
     iot_device_1_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
     
-    print('\n>> sending toggle switch to BLE1: \n')
+    # print('\n>> sending toggle switch to BLE1: \n')
     # Writing switch status.
     iot_device_1.disable_notifications(iot_device_1_feature_switch)
     iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
@@ -190,13 +190,13 @@ def receive_ble1_message_callback(message, hubManager):
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
-    print('\nble1 receive msg cb << message: \n')    
+    # print('\nble1 receive msg cb << message: \n')    
     data = message_text.split()[3]
 
     # Toggle switch status.
     iot_device_2_status = SwitchStatus.ON if data != '[0]' else SwitchStatus.OFF
     
-    print('\n>> sending toggle switch to BLE2: \n')
+    # print('\n>> sending toggle switch to BLE2: \n')
     # Writing switch status.
     iot_device_2.disable_notifications(iot_device_2_feature_switch)
     iot_device_2_feature_switch.write_switch_status(iot_device_2_status.value)
@@ -340,6 +340,7 @@ def main(protocol):
         while True:
             # Getting notifications.
             if iot_device_1.wait_for_notifications(0.05) or iot_device_2.wait_for_notifications(0.05):
+                time.sleep(2) # workaround for Unexpected Response Issue
                 print("rcvd notification!")
                 continue
 
