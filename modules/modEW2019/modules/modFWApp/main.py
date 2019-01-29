@@ -111,22 +111,6 @@ class MyFeatureListenerBLE1(FeatureListener):
         self.num += 1
 
 
-class MyFeatureListenerBLE2(FeatureListener):
-    num = 0
-
-    def __init__(self, hubManager):
-        self.hubManager = hubManager
-
-    def on_update(self, feature, sample):
-        # print('\n>>FeatureListenerBLE2 update: feature: ')
-        print(feature)
-        sample_str = sample.__str__()
-        # print('sample data:' + sample_str)
-
-        event = IoTHubMessage(bytearray(sample_str, 'utf8'))
-        self.hubManager.forward_event_to_output(BLE2_APPMOD_OUTPUT, event, 0)
-        self.num += 1
-
 # Bluetooth Scanning time in seconds.
 SCANNING_TIME_s = 5
 
@@ -155,7 +139,7 @@ PROTOCOL = IoTHubTransportProvider.MQTT
 
 
 # This function will be called every time a method request is received
-def update_firmware(method_name, payload, user_context):
+def method_callback(method_name, payload, user_context):
     print('received method call:')
     print('\tmethod name:', method_name)
     print('\tpayload:', str(payload))
@@ -210,7 +194,7 @@ class HubManager(object):
         self.client.set_module_twin_callback(module_twin_callback, self)
 
         # Register the callback with the client
-        self.client.set_module_method_callback(firmware_update, self)
+        self.client.set_module_method_callback(method_callback, self)
         
 
     # Forwards the message received onto the next stage in the process.
