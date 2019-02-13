@@ -23,13 +23,7 @@ from bluepy.btle import BTLEException
 from enum import Enum
 
 BLE1_APPMOD_INPUT   = 'BLE1_App_Input'
-BLE2_APPMOD_INPUT   = 'BLE2_App_Input'
 BLE1_APPMOD_OUTPUT  = 'BLE1_App_Output'
-BLE2_APPMOD_OUTPUT  = 'BLE2_App_Output'
-BLE1_DEVMOD_INPUT   = 'BLE1_Input'
-BLE2_DEVMOD_INPUT   = 'BLE2_Input'
-BLE1_DEVMOD_OUTPUT  = 'BLE1_Output'
-BLE2_DEVMOD_OUTPUT  = 'BLE2_Output'
 
 # Status of the switch.
 class SwitchStatus(Enum):
@@ -101,11 +95,8 @@ class MyFeatureListenerBLE1(FeatureListener):
     # @param sample  Data extracted from the feature.
     #
     def on_update(self, feature, sample):
-        #if(self.num < NOTIFICATIONS):
-        # print('\n>>FeatureListenerBLE1 update: feature: ')
         print(feature)
         sample_str = sample.__str__()
-        # print('sample data:' + sample_str)
 
         event = IoTHubMessage(bytearray(sample_str, 'utf8'))
         self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
@@ -150,8 +141,6 @@ def method_callback(method_name, payload, user_context):
     print('received method call:')
     print('\tmethod name:', method_name)
     print('\tpayload:', payload)
-    payload_url = str(payload[0])
-    print(payload_url)
     json_dict = json.loads(payload)
     print ('\nURL to download from:')
     url = json_dict['url']
@@ -159,15 +148,12 @@ def method_callback(method_name, payload, user_context):
     filename = url[url.rfind("/")+1:]
     print (filename)
 
-    # Download from URL provided in payload    
-    # https://sample-videos.com/text/Sample-text-file-10kb.txt
+    # Download from URL provided in payload
     download_file = "/app/" + filename
-    #file_url = "http://codex.cs.yale.edu/avi/db-book/db4/slide-dir/ch1-2.pdf"
     print('downloading file...')
     r = requests.get(url, stream = True)
     with open(download_file,"wb") as pdf: 
-        for chunk in r.iter_content(chunk_size=1024):  
-            # writing one chunk at a time to pdf file 
+        for chunk in r.iter_content(chunk_size=1024):
             if chunk: 
                 pdf.write(chunk) 
     
@@ -327,36 +313,7 @@ def main(protocol):
         print('\nBluetooth setup complete.')
 
         # Demo running.
-        print('\nDemo running (\"CTRL+C\" to quit)...\n')
-
-        # while True:
-        #     # send a few messages every minute
-        #     print ( "modfwapp sending %d messages" % MESSAGE_COUNT )
-
-        #     for message_counter in range(0, MESSAGE_COUNT):
-        #         temperature = MIN_TEMPERATURE + (random.random() * 10)
-        #         humidity = MIN_HUMIDITY + (random.random() * 20)
-        #         msg_txt_formatted = MSG_TXT % (
-        #             AVG_WIND_SPEED + (random.random() * 4 + 2),
-        #             temperature,
-        #             humidity)
-
-        #         msg_properties = {
-        #             "temperatureAlert": 'true' if temperature > 28 else 'false'
-        #         }
-                
-        #         event = IoTHubMessage(bytearray(msg_txt_formatted, 'utf8'))
-        #         # hub_manager.forward_event_to_output("temperatureOutput", event, message_counter)
-
-        #     # Wait for Commands or exit
-        #     print ( "IoTHubModuleClient waiting for commands, press Ctrl-C to exit." )
-
-        #     status_counter = 0
-        #     while status_counter < 6:
-        #         status = hub_manager.get_send_status()
-        #         print ( "Send status: %s" % status )
-        #         time.sleep(10)
-        #         status_counter += 1
+        print('\nDemo running (\"CTRL+C\" to quit)...\n')        
 
         # Infinite loop.
         while True:
