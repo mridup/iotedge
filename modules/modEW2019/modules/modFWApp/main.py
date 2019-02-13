@@ -7,6 +7,7 @@ import time
 import sys
 import os
 import json
+import requests
 import blue_st_sdk
 import iothub_client
 # pylint: disable=E0611
@@ -133,6 +134,12 @@ RECEIVE_CALLBACKS = 0
 SEND_CALLBACKS = 0
 USER_CONTEXT = 0
 RECEIVE_CONTEXT = 0
+AVG_WIND_SPEED = 10.0
+MIN_TEMPERATURE = 20.0
+MIN_HUMIDITY = 60.0
+MESSAGE_COUNT = 3
+
+MSG_TXT = "{\"iotedge\": \"DevPyTempSensor\",\"windSpeed\": %.2f,\"temperature\": %.2f,\"humidity\": %.2f}"
 
 # Choose HTTP, AMQP or MQTT as transport protocol.  Currently only MQTT is supported.
 PROTOCOL = IoTHubTransportProvider.MQTT
@@ -142,17 +149,46 @@ PROTOCOL = IoTHubTransportProvider.MQTT
 def method_callback(method_name, payload, user_context):
     print('received method call:')
     print('\tmethod name:', method_name)
-    print('\tpayload:', str(payload))
-    # Download from URL provided in payload
+    print('\tpayload:', payload)
+    payload_url = str(payload[0])
+    print(payload_url)
+    json_dict = json.loads(payload)
+    print ('\nURL to download from:')
+    url = json_dict['url']
+    print (url)
+    filename = url[url.rfind("/")+1:]
+    print (filename)
+
+    # Download from URL provided in payload    
+    # https://sample-videos.com/text/Sample-text-file-10kb.txt
+    download_file = "/app/" + filename
+    #file_url = "http://codex.cs.yale.edu/avi/db-book/db4/slide-dir/ch1-2.pdf"
+    print('downloading file...')
+    r = requests.get(url, stream = True)
+    with open(download_file,"wb") as pdf: 
+        for chunk in r.iter_content(chunk_size=1024):  
+            # writing one chunk at a time to pdf file 
+            if chunk: 
+                pdf.write(chunk) 
+    
     retval = DeviceMethodReturnValue()
-    retval.status = 200
-    retval.response = "{\"result\":\"okay\"}"
+    if os.path.isfile(download_file):
+        print('download complete')
+        retval.status = 200
+        retval.response = "{\"result\":\"okay\"}"
+    else:
+        print('download failure')
+        retval.status = 200
+        retval.response = "{\"result\":\"error\"}"
+
+    # Now start FW update process using blue-stsdk-python interface
+    #  
     return retval
 
 
 def send_confirmation_callback(message, result, user_context):
     global SEND_CALLBACKS
-    # print ( "\nConfirmation[%d] received for message with result = %s" % (user_context, result) )
+    print ( "\nConfirmation[%d] received for message with result = %s" % (user_context, result) )
     SEND_CALLBACKS += 1
     # print ( "Total calls confirmed: %d" % SEND_CALLBACKS )
 
@@ -202,6 +238,9 @@ class HubManager(object):
         self.client.send_event_async(
             outputQueueName, event, send_confirmation_callback, send_context)
 
+    def get_send_status(self):
+        return self.client.get_send_status()
+
 
 def main(protocol):
     try:
@@ -243,6 +282,7 @@ def main(protocol):
                 print('\nAvailable Bluetooth devices:')
                 # Checking discovered devices.
                 devices = []
+                dev_found = False
                 i = 1
                 for discovered in discovered_devices:
                     device_name = discovered.get_name()
@@ -251,10 +291,11 @@ def main(protocol):
                         iot_device_1 = discovered
                         devices.append(iot_device_1)
                         print("IOT_DEVICE device found!")
-                    if len(devices) == 1:
+                        dev_found = True
                         break
                     i += 1
-                break
+                if dev_found is True:
+                    break
 
         # Selecting a device.
         # Connecting to the devices.
@@ -288,8 +329,38 @@ def main(protocol):
         # Demo running.
         print('\nDemo running (\"CTRL+C\" to quit)...\n')
 
+        # while True:
+        #     # send a few messages every minute
+        #     print ( "modfwapp sending %d messages" % MESSAGE_COUNT )
+
+        #     for message_counter in range(0, MESSAGE_COUNT):
+        #         temperature = MIN_TEMPERATURE + (random.random() * 10)
+        #         humidity = MIN_HUMIDITY + (random.random() * 20)
+        #         msg_txt_formatted = MSG_TXT % (
+        #             AVG_WIND_SPEED + (random.random() * 4 + 2),
+        #             temperature,
+        #             humidity)
+
+        #         msg_properties = {
+        #             "temperatureAlert": 'true' if temperature > 28 else 'false'
+        #         }
+                
+        #         event = IoTHubMessage(bytearray(msg_txt_formatted, 'utf8'))
+        #         # hub_manager.forward_event_to_output("temperatureOutput", event, message_counter)
+
+        #     # Wait for Commands or exit
+        #     print ( "IoTHubModuleClient waiting for commands, press Ctrl-C to exit." )
+
+        #     status_counter = 0
+        #     while status_counter < 6:
+        #         status = hub_manager.get_send_status()
+        #         print ( "Send status: %s" % status )
+        #         time.sleep(10)
+        #         status_counter += 1
+
         # Infinite loop.
         while True:
+            # continue
             # Getting notifications.
             if iot_device_1.wait_for_notifications(0.05):
                 time.sleep(2) # workaround for Unexpected Response Issue
