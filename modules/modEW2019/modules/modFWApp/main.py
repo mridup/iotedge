@@ -137,7 +137,7 @@ PROTOCOL = IoTHubTransportProvider.MQTT
 
 
 # This function will be called every time a method request is received
-def method_callback(method_name, payload, user_context):
+def firmwareUpdate(method_name, payload, user_context):
     print('received method call:')
     print('\tmethod name:', method_name)
     print('\tpayload:', payload)
@@ -192,8 +192,18 @@ def receive_ble1_message_callback(message, hubManager):
 
 
 # module_twin_callback is invoked when the module twin's desired properties are updated.
-def module_twin_callback(update_state, payload, user_context):
+def module_twin_callback(update_state, payload, hubManager):
     print ( "\nModule twin callback >> call confirmed\n")
+    print('\tpayload:', payload)
+        
+    reported_state = "{\"SupportedMethods\":{\"firmwareUpdate--FwPackageUri-string\":\"Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file\"}}"
+    hubManager.client.send_reported_state(reported_state, len(reported_state), send_reported_state_callback, hubManager)
+
+
+def send_reported_state_callback(status_code, hubManager):
+    print ( "\nSend reported state callback >> call confirmed\n")
+    print ('status code: ', status_code)
+    pass
 
 
 class HubManager(object):
@@ -216,7 +226,7 @@ class HubManager(object):
         self.client.set_module_twin_callback(module_twin_callback, self)
 
         # Register the callback with the client
-        self.client.set_module_method_callback(method_callback, self)
+        self.client.set_module_method_callback(firmwareUpdate, self)
         
 
     # Forwards the message received onto the next stage in the process.
@@ -293,18 +303,18 @@ def main(protocol):
 
         # Getting features.
         print('\nGetting features...')
-        iot_device_1_feature_switch = iot_device_1.get_feature(feature_switch.FeatureSwitch)
+        # iot_device_1_feature_switch = iot_device_1.get_feature(feature_switch.FeatureSwitch)
 
         # Resetting switches.
         print('Resetting switches...')
-        iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
+        # iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
 
         # Handling sensing and actuation of switch devices.
-        iot_device_1_feature_switch.add_listener(MyFeatureListenerBLE1(hub_manager))
+        # iot_device_1_feature_switch.add_listener(MyFeatureListenerBLE1(hub_manager))
 
         # Enabling notifications.
         print('Enabling Bluetooth notifications...')
-        iot_device_1.enable_notifications(iot_device_1_feature_switch)
+        # iot_device_1.enable_notifications(iot_device_1_feature_switch)
 
         # Getting notifications forever
         print("Ready to receive notifications")        
@@ -317,12 +327,13 @@ def main(protocol):
 
         # Infinite loop.
         while True:
+            pass
             # continue
             # Getting notifications.
-            if iot_device_1.wait_for_notifications(0.05):
-                time.sleep(2) # workaround for Unexpected Response Issue
-                print("rcvd notification!")
-                continue
+            # if iot_device_1.wait_for_notifications(0.05):
+                # time.sleep(2) # workaround for Unexpected Response Issue
+                # print("rcvd notification!")
+                # continue
 
     except BTLEException as e:
         print(e)
