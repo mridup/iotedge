@@ -195,9 +195,19 @@ def receive_ble1_message_callback(message, hubManager):
 def module_twin_callback(update_state, payload, hubManager):
     print ( "\nModule twin callback >> call confirmed\n")
     print('\tpayload:', payload)
-        
-    reported_state = "{\"SupportedMethods\":{\"firmwareUpdate--FwPackageUri-string\":\"Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file\"}}"
-    hubManager.client.send_reported_state(reported_state, len(reported_state), send_reported_state_callback, hubManager)
+
+    # reported_state = "{\"SupportedMethods\":{\"firmwareUpdate--FwPackageUri-string\":\"Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file\"}}, {\"AI\":{\"audio-classification\":\"in-door;out-door\"}, {\"activity-recognition\":\"stationary\"}}"
+    reported_json = {
+        "SupportedMethods": {
+            "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"
+        },
+        "AI": {
+        "audio-classification": "in-door;out-door;in-vehicle",
+        "activity-recognition": "stationary;walking;jogging;biking;driving;stairs"
+        }
+    }
+    json_string = json.dumps(reported_json)
+    hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hubManager)
 
 
 def send_reported_state_callback(status_code, hubManager):
