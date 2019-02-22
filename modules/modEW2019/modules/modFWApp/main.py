@@ -143,7 +143,7 @@ def firmwareUpdate(method_name, payload, user_context):
     print('\tpayload:', payload)
     json_dict = json.loads(payload)
     print ('\nURL to download from:')
-    url = json_dict['url']
+    url = json_dict['FwPackageUri']
     print (url)
     filename = url[url.rfind("/")+1:]
     print (filename)
