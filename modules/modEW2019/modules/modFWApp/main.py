@@ -18,9 +18,20 @@ from blue_st_sdk.manager import Manager, ManagerListener
 from blue_st_sdk.node import NodeListener
 from blue_st_sdk.feature import FeatureListener
 from blue_st_sdk.features import *
+from blue_st_sdk.firmware_upgrade.firmware_upgrade_nucleo import FirmwareUpgradeNucleo
+from blue_st_sdk.firmware_upgrade.firmware_upgrade import FirmwareUpgradeListener
+from blue_st_sdk.firmware_upgrade.utils.firmware_file import FirmwareFile
 from bluepy.btle import BTLEException
 
 from enum import Enum
+
+# Firmware file paths.
+FIRMWARE_PATH = '/app/'
+FIRMWARE_EXTENSION = '.bin'
+FIRMWARE_FILENAMES = [
+    'SENSING1_ASC', \
+    'SENSING1_HAR_GMP'
+]
 
 BLE1_APPMOD_INPUT   = 'BLE1_App_Input'
 BLE1_APPMOD_OUTPUT  = 'BLE1_App_Output'
@@ -32,55 +43,24 @@ class SwitchStatus(Enum):
 
 # INTERFACES
 
-#
-# Implementation of the interface used by the Manager class to notify that a new
-# node has been discovered or that the scanning starts/stops.
-#
 class MyManagerListener(ManagerListener):
 
-    #
-    # This method is called whenever a discovery process starts or stops.
-    #
-    # @param manager Manager instance that starts/stops the process.
-    # @param enabled True if a new discovery starts, False otherwise.
-    #
     def on_discovery_change(self, manager, enabled):
         print('Discovery %s.' % ('started' if enabled else 'stopped'))
         if not enabled:
             print()
 
-    #
-    # This method is called whenever a new node is discovered.
-    #
-    # @param manager Manager instance that discovers the node.
-    # @param node    New node discovered.
-    #
     def on_node_discovered(self, manager, node):
         print('New device discovered: %s.' % (node.get_name()))
 
 
-#
-# Implementation of the interface used by the Node class to notify that a node
-# has updated its status.
-#
 class MyNodeListener(NodeListener):
 
-    #
-    # To be called whenever a node changes its status.
-    #
-    # @param node       Node that has changed its status.
-    # @param new_status New node status.
-    # @param old_status Old node status.
-    #
     def on_status_change(self, node, new_status, old_status):
         print('Device %s went from %s to %s.' %
             (node.get_name(), str(old_status), str(new_status)))
 
 
-#
-# Implementation of the interface used by the Feature class to notify that a
-# feature has updated its data.
-#
 class MyFeatureListenerBLE1(FeatureListener):
 
     num = 0
@@ -88,12 +68,6 @@ class MyFeatureListenerBLE1(FeatureListener):
     def __init__(self, hubManager):
         self.hubManager = hubManager
 
-    #
-    # To be called whenever the feature updates its data.
-    #
-    # @param feature Feature that has updated.
-    # @param sample  Data extracted from the feature.
-    #
     def on_update(self, feature, sample):
         print(feature)
         sample_str = sample.__str__()
@@ -102,12 +76,57 @@ class MyFeatureListenerBLE1(FeatureListener):
         self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
         self.num += 1
 
+#
+# Implementation of the interface used by the FirmwareUpgrade class to notify
+# changes when upgrading the firmware.
+#
+class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
+
+    #
+    # To be called whenever the firmware has been upgraded correctly.
+    #
+    # @param debug_console Debug console.
+    # @param firmware_file Firmware file.
+    #
+    def on_upgrade_firmware_complete(self, debug_console, firmware_file):
+        global firmware_upgrade_completed
+
+        print('Firmware upgrade completed. Device is rebooting...')
+        time.sleep(10)
+        firmware_upgrade_completed = True
+
+    #
+    # To be called whenever there is an error in upgrading the firmware.
+    #
+    # @param debug_console Debug console.
+    # @param firmware_file Firmware file.
+    # @param error         Error code.
+    #
+    def on_upgrade_firmware_error(self, debug_console, firmware_file, error):
+        print('Firmware upgrade error: %s.' % (str(error)))
+        time.sleep(5)
+        firmware_upgrade_completed = True
+
+    #
+    # To be called whenever there is an update in upgrading the firmware, i.e. a
+    # block of data has been correctly sent and it is possible to send a new one.
+    #
+    # @param debug_console Debug console.
+    # @param firmware_file Firmware file.
+    # @param bytes_sent    Data sent in bytes.
+    # @param bytes_to_send Data to send in bytes.
+    #
+    def on_upgrade_firmware_progress(self, debug_console, firmware_file, \
+        bytes_sent, bytes_to_send):
+        print('%d bytes out of %d sent...' % (bytes_sent, bytes_to_send))
+
 
 # Bluetooth Scanning time in seconds.
 SCANNING_TIME_s = 5
 
 # Bluetooth Low Energy devices' MAC address.
-IOT_DEVICE_1_MAC = 'd8:9a:e3:f0:12:d7'  ##System Lab BLE board
+# IOT_DEVICE_1_MAC = 'd8:9a:e3:f0:12:d7'  ##System Lab BLE board
+IOT_DEVICE_1_MAC = 'ce:61:6b:61:53:c9'  # Sensor Tile board
 
 # Number of notifications to get before disabling them.
 NOTIFICATIONS = 3
@@ -168,7 +187,20 @@ def firmwareUpdate(method_name, payload, user_context):
         retval.response = "{\"result\":\"error\"}"
 
     # Now start FW update process using blue-stsdk-python interface
-    #  
+    global iot_device_1
+    global firmware_upgrade_started
+    print('\nStarting process to upgrade firmware...File: 1')
+    upgrade_console = FirmwareUpgradeNucleo.get_console(iot_device_1)
+    upgrade_console_listener = MyFirmwareUpgradeListener()
+    upgrade_console.add_listener(upgrade_console_listener)
+    firmware = FirmwareFile(
+        FIRMWARE_PATH +
+        FIRMWARE_FILENAMES[0] +
+        FIRMWARE_EXTENSION)
+    upgrade_console.upgrade_firmware(firmware)
+    time.sleep(1)
+    firmware_upgrade_started = True    
+
     return retval
 
 
@@ -202,8 +234,7 @@ def module_twin_callback(update_state, payload, hubManager):
             "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"
         },
         "AI": {
-        "audio-classification": "in-door;out-door;in-vehicle",
-        "activity-recognition": "stationary;walking;jogging;biking;driving;stairs"
+        "audio-classification": "in-door;out-door;in-vehicle"
         }
     }
     json_string = json.dumps(reported_json)
@@ -248,7 +279,8 @@ class HubManager(object):
         return self.client.get_send_status()
 
 
-def main(protocol):
+def main(protocol):   
+
     try:
         print ( "\nPython %s\n" % sys.version )
 
@@ -256,11 +288,15 @@ def main(protocol):
         global iot_device_1
         global iot_device_1_feature_switch
         global iot_device_1_status
+        global firmware_upgrade_completed
+        global firmware_upgrade_started
 
         # initialize_client(IoTHubTransportProvider.MQTT)
         hub_manager = HubManager(protocol)
 
         # Initial state.
+        firmware_upgrade_completed = False
+        firmware_upgrade_started = False
         iot_device_1_status = SwitchStatus.OFF
 
         print ( "Starting the FWModApp module using protocol MQTT...")
@@ -312,11 +348,50 @@ def main(protocol):
             print('Connection done.')
 
         # Getting features.
-        print('\nGetting features...')
+        print('\nFeatures:')
+        i = 1
+        features = []
+        for desired_feature in [
+            feature_audio_scene_classification.FeatureAudioSceneClassification,
+            feature_activity_recognition.FeatureActivityRecognition]:
+            feature = iot_device_1.get_feature(desired_feature)
+            if feature:
+                features.append(feature)
+                print('%d) %s' % (i, feature.get_name()))
+                i += 1
+        if not features:
+            print('No features found.')
+        print('%d) Firmware upgrade' % (i))
+
+        i = 1
+        print('\nAvailable firmware files:')
+        for filename in FIRMWARE_FILENAMES:
+            print('%d) %s' % (i, filename))
+            i += 1
+        
+        # upgrade_console = FirmwareUpgradeNucleo.get_console(iot_device_1)
+        # upgrade_console_listener = MyFirmwareUpgradeListener()
+        # upgrade_console.add_listener(upgrade_console_listener)
+        # firmware = FirmwareFile(
+        #     FIRMWARE_PATH +
+        #     FIRMWARE_FILENAMES[0] +
+        #     FIRMWARE_EXTENSION)
+        # upgrade_console.upgrade_firmware(firmware)
+
+        # Wait till firmware upgrade process is started in method callback
+        while not firmware_upgrade_started:
+            continue
+        # Getting notifications about firmware upgrade process.
+        while not firmware_upgrade_completed:
+            if iot_device_1.wait_for_notifications(0.05):
+                continue
+
+        # Getting features.
+        # print('\nGetting features...')
         # iot_device_1_feature_switch = iot_device_1.get_feature(feature_switch.FeatureSwitch)
 
         # Resetting switches.
-        print('Resetting switches...')
+        # print('Resetting switches...')
         # iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
 
         # Handling sensing and actuation of switch devices.
