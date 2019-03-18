@@ -30,12 +30,20 @@ FIRMWARE_PATH = '/app/'
 FIRMWARE_EXTENSION = '.bin'
 FIRMWARE_FILENAMES = [
     'SENSING1_ASC', \
-    'SENSING1_HAR_GMP'
+    'SENSING1_HAR_GMP', \
+    'SENSING1_HAR_IGN', \
+    'SENSING1_HAR_IGN_WSDM'
 ]
 FIRMWARE_FILE_DICT = {  "SENSING1_ASC" + FIRMWARE_EXTENSION: "audio-classification",
-                        "SENSING1_HAR_GMP" + FIRMWARE_EXTENSION: "activity-recognition"}
+                        "SENSING1_HAR_GMP" + FIRMWARE_EXTENSION: "activity-recognition",
+                        "SENSING1_HAR_IGN" + FIRMWARE_EXTENSION: "activity-recognition",
+                        "SENSING1_HAR_IGN_WSDM" + FIRMWARE_EXTENSION: "activity-recognition"
+                        }
 FIRMWARE_DESC_DICT = {  "SENSING1_ASC" + FIRMWARE_EXTENSION: "in-door;out-door;in-vehicle",
-                        "SENSING1_HAR_GMP" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving'stairs"}
+                        "SENSING1_HAR_GMP" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving'stairs",
+                        "SENSING1_HAR_IGN" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving'stairs",
+                        "SENSING1_HAR_IGN_WSDM" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving'stairs"
+                        }
 
 BLE1_APPMOD_INPUT   = 'BLE1_App_Input'
 BLE1_APPMOD_OUTPUT  = 'BLE1_App_Output'
@@ -147,6 +155,7 @@ class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
         }
         json_string = json.dumps(reported_json)
         self.hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, self.hubManager)
+        print('sent reported properties...')
         time.sleep(10)
         firmware_upgrade_completed = True
 
