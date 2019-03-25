@@ -8,6 +8,7 @@ import sys
 import os
 import json
 import requests
+import threading
 import blue_st_sdk
 import iothub_client
 # pylint: disable=E0611
@@ -40,9 +41,9 @@ FIRMWARE_FILE_DICT = {  "SENSING1_ASC" + FIRMWARE_EXTENSION: "audio-classificati
                         "SENSING1_HAR_IGN_WSDM" + FIRMWARE_EXTENSION: "activity-recognition"
                         }
 FIRMWARE_DESC_DICT = {  "SENSING1_ASC" + FIRMWARE_EXTENSION: "in-door;out-door;in-vehicle",
-                        "SENSING1_HAR_GMP" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving'stairs",
-                        "SENSING1_HAR_IGN" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving'stairs",
-                        "SENSING1_HAR_IGN_WSDM" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving'stairs"
+                        "SENSING1_HAR_GMP" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving;stairs",
+                        "SENSING1_HAR_IGN" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving;stairs",
+                        "SENSING1_HAR_IGN_WSDM" + FIRMWARE_EXTENSION: "stationary;walking;jogging;biking;driving;stairs"
                         }
 
 BLE1_APPMOD_INPUT   = 'BLE1_App_Input'
@@ -186,8 +187,8 @@ class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
 
 
 # This function will be called every time a method request is received
-def firmwareUpdate(method_name, payload, hubManager):
-    global firmware_status, firmware_update_file
+def firmwareUpdate(method_name, payload, hubManager): 
+    global firmware_update_file, update_task
     print('received method call:')
     print('\tmethod name:', method_name)
     print('\tpayload:', payload)
@@ -199,9 +200,22 @@ def firmwareUpdate(method_name, payload, hubManager):
     firmware_update_file = filename
     print (filename)
 
-    # Download from URL provided in payload
-    download_file = "/app/" + filename
+    # Start thread to download and update
+    update_task = threading.Thread(target=download_update, args=(url, filename, hubManager))
+    update_task.start()
+    print ('\ndownload and update task started')
+
+    retval = DeviceMethodReturnValue()
+    retval.status = 200
+    retval.response = "{\"result\":\"okay\"}"
+    return retval
+
+
+def download_update(url, filename, context):
+    global firmware_status, firmware_update_file
+    print('\n>> Download and Update Task')
     print('downloading file...')
+    download_file = "/app/" + filename
     r = requests.get(url, stream = True)
     with open(download_file,"wb") as _content: 
         for chunk in r.iter_content(chunk_size=1024):
@@ -210,28 +224,23 @@ def firmwareUpdate(method_name, payload, hubManager):
     
     retval = DeviceMethodReturnValue()
     if os.path.isfile(download_file):
-        print('download complete')
-        retval.status = 200
-        retval.response = "{\"result\":\"okay\"}"
+        print('download complete')        
     else:
         print('download failure')
-        retval.status = 200
-        retval.response = "{\"result\":\"error\"}"
-        return retval
+        return
 
     # Now start FW update process using blue-stsdk-python interface
     global iot_device_1
     global firmware_upgrade_started
     print('\nStarting process to upgrade firmware...File: ' + download_file)
     upgrade_console = FirmwareUpgradeNucleo.get_console(iot_device_1)
-    upgrade_console_listener = MyFirmwareUpgradeListener(hubManager)
+    upgrade_console_listener = MyFirmwareUpgradeListener(context)
     upgrade_console.add_listener(upgrade_console_listener)
     firmware = FirmwareFile(download_file)
     upgrade_console.upgrade_firmware(firmware)
-    time.sleep(1)
+    time.sleep(2)
     firmware_upgrade_started = True
-
-    return retval
+    return
 
 
 def send_confirmation_callback(message, result, user_context):
@@ -260,16 +269,16 @@ def module_twin_callback(update_state, payload, hubManager):
     print('\tpayload:', payload)
     # payload_string = json.dumps(payload)
     # payload_json = json.loads(payload_string)
-    payload_json = json.loads(payload)
+    # payload_json = json.loads(payload)
     
-    if "audio-classification" in payload_json["reported"]["AI"]:
-        ai_fw_running = 'audio-classification'
-        print(ai_fw_running)
-    elif "activity-recognition" in payload_json["reported"]["AI"]:
-        ai_fw_running = 'activity-recognition'
-        print(ai_fw_running)
-    firmware_status = ai_fw_running
-    print("firmware reported by module twin: " + firmware_status)   
+    # if "audio-classification" in payload_json["reported"]["AI"]:
+    #     ai_fw_running = 'audio-classification'
+    #     print(ai_fw_running)
+    # elif "activity-recognition" in payload_json["reported"]["AI"]:
+    #     ai_fw_running = 'activity-recognition'
+    #     print(ai_fw_running)
+    # firmware_status = ai_fw_running
+    # print("firmware reported by module twin: " + firmware_status)   
 
 
 def send_reported_state_callback(status_code, hubManager):
@@ -323,6 +332,8 @@ def main(protocol):
         global firmware_upgrade_started
         global firmware_status
         global firmware_update_file
+        global firmware_desc
+        global update_task
 
         # initialize_client(IoTHubTransportProvider.MQTT)
         hub_manager = HubManager(protocol)
@@ -384,6 +395,8 @@ def main(protocol):
         print('\nFeatures:')
         i = 1
         features = []
+        ai_fw_running = "none"
+        firmware_desc = "none"
         for desired_feature in [
             feature_audio_scene_classification.FeatureAudioSceneClassification,
             feature_activity_recognition.FeatureActivityRecognition]:
@@ -391,10 +404,32 @@ def main(protocol):
             if feature:
                 features.append(feature)
                 print('%d) %s' % (i, feature.get_name()))
-                i += 1
+                if feature.get_name() == "Activity Recognition":
+                    ai_fw_running = "activity-recognition"
+                    firmware_desc = "stationary;walking;jogging;biking;driving;stairs"
+                    print(ai_fw_running + 'FW feature present')
+                elif feature.get_name() == "Audio Scene Classification":
+                    ai_fw_running = "audio-classification"
+                    firmware_desc = "in-door;out-door;in-vehicle"
+                    print(ai_fw_running + ' FW feature present')
+        i += 1        
         if not features:
             print('No features found.')
-        print('%d) Firmware upgrade' % (i))      
+        print('%d) Firmware upgrade' % (i))
+
+        firmware_status = ai_fw_running
+        print("firmware reported by module twin: " + firmware_status)
+        reported_json = {
+            "SupportedMethods": {
+                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"
+            },
+            "AI": {
+            firmware_status: firmware_desc
+            }
+        }
+        json_string = json.dumps(reported_json)
+        hub_manager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hub_manager)
+        print('sent reported properties...')
 
         # Wait till firmware upgrade process is started in method callback
         while not firmware_upgrade_started:
@@ -402,28 +437,7 @@ def main(protocol):
         # Getting notifications about firmware upgrade process.
         while not firmware_upgrade_completed:
             if iot_device_1.wait_for_notifications(0.05):
-                continue
-
-        # Getting features.
-        # print('\nGetting features...')
-        # iot_device_1_feature_switch = iot_device_1.get_feature(feature_switch.FeatureSwitch)
-
-        # Resetting switches.
-        # print('Resetting switches...')
-        # iot_device_1_feature_switch.write_switch_status(iot_device_1_status.value)
-
-        # Handling sensing and actuation of switch devices.
-        # iot_device_1_feature_switch.add_listener(MyFeatureListenerBLE1(hub_manager))
-
-        # Enabling notifications.
-        # print('Enabling Bluetooth notifications...')
-        # iot_device_1.enable_notifications(iot_device_1_feature_switch)
-
-        # Getting notifications forever
-        # print("Ready to receive notifications")        
-
-        # Bluetooth setup complete.
-        # print('\nBluetooth setup complete.')
+                continue        
 
         # Demo running.
         print('\nDemo running (\"CTRL+C\" to quit)...\n')        
