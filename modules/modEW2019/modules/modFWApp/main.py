@@ -201,19 +201,22 @@ class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
         # print('Firmware updated to: ' + firmware_file)
         firmware_status = FIRMWARE_FILE_DICT[firmware_update_file]
         print("Firmware status updated to: " + firmware_status)
-        print("Firmware description updated to: " + FIRMWARE_DESC_DICT[firmware_update_file])
-        # reported_state = "{\"SupportedMethods\":{\"firmwareUpdate--FwPackageUri-string\":\"Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file\"}}, {\"AI\":{\"audio-classification\":\"in-door;out-door\"}, {\"activity-recognition\":\"stationary\"}}"
+        print("Firmware description updated to: " + FIRMWARE_DESC_DICT[firmware_update_file])        
         reported_json = {
             "SupportedMethods": {
                 "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"
             },
             "AI": {
-            firmware_status: FIRMWARE_DESC_DICT[firmware_update_file]
+                "firmware": firmware_status,    
+                firmware_status: FIRMWARE_DESC_DICT[firmware_update_file]
+            },
+            "State": {
+                "fw_update": "Not_Running"
             }
         }
         json_string = json.dumps(reported_json)
         self.hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, self.hubManager)
-        print('sent reported properties...')
+        print('sent reported properties...with status "not running"')
         time.sleep(10)
         firmware_upgrade_completed = True
 
@@ -282,8 +285,8 @@ def startMonitor(method_name, payload, hubManager):
     return retval
 
 
-def download_update(url, filename, context):
-    global firmware_status, firmware_update_file
+def download_update(url, filename, hubManager):
+    global firmware_status, firmware_update_file, firmware_desc
     print('\n>> Download and Update Task')
     print('downloading file...')
     download_file = "/app/" + filename
@@ -304,12 +307,27 @@ def download_update(url, filename, context):
     global firmware_upgrade_started
     print('\nStarting process to upgrade firmware...File: ' + download_file)
     upgrade_console = FirmwareUpgradeNucleo.get_console(iot_device_1)
-    upgrade_console_listener = MyFirmwareUpgradeListener(context)
+    upgrade_console_listener = MyFirmwareUpgradeListener(hubManager)
     upgrade_console.add_listener(upgrade_console_listener)
     firmware = FirmwareFile(download_file)
     upgrade_console.upgrade_firmware(firmware)
     time.sleep(2)
     firmware_upgrade_started = True
+    reported_json = {
+            "SupportedMethods": {
+                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
+            },
+            "AI": {
+                "firmware": firmware_status,
+                firmware_status: firmware_desc
+            },
+            "State": {
+                "fw_update": "Running"
+            }
+        }
+    json_string = json.dumps(reported_json)
+    hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hubManager)
+    print('sent reported properties...with status "running"')
     return
 
 
@@ -480,55 +498,36 @@ def main(protocol):
         print("firmware reported by module twin: " + firmware_status)
         reported_json = {
             "SupportedMethods": {
-                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"
-                #"startMonitor": "Disables FW Upgrade and enables notifications from events"
+                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
             },
             "AI": {
-            firmware_status: firmware_desc
+                "firmware": firmware_status,
+                firmware_status: firmware_desc
+            },
+            "State": {
+                "fw_update": "Not_Running"
             }
         }
         json_string = json.dumps(reported_json)
         hub_manager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hub_manager)
-        print('sent reported properties...')        
+        print('sent reported properties...')                
 
-        print('\nWaiting for event notifications...\n')
-        # Getting notifications about firmware events
-        feature = features[0]
-        # Enabling notifications.
-        feature_listener = MyFeatureListener(hub_manager)
-        feature.add_listener(feature_listener)
-        iot_device_1.enable_notifications(feature)
-
-        # print('\nWaiting for FW Update process to be started...\n')
-        # # Wait till firmware upgrade process is started in method callback
-        # while not firmware_upgrade_started:
-        #     continue        
-        # print('\nFW Update process started...!\n')
-        # while not firmware_upgrade_completed:
-        while True:
-            if iot_device_1.wait_for_notifications(0.05):
-                continue        
-
-        # print('\nWaiting for event notifications...\n')
-        # Getting notifications about firmware events
-        # feature = features[0]
-        # # Enabling notifications.
-        # feature_listener = MyFeatureListener(hub_manager)
-        # feature.add_listener(feature_listener)
-        # iot_device_1.enable_notifications(feature)
+        print('\nWaiting for FW Update process to be started...\n')
+        # Wait till firmware upgrade process is started in method callback
+        while not firmware_upgrade_started:
+            continue        
+        print('\nFW Update process started...!\n')
+        while not firmware_upgrade_completed:
+            while True:
+                if iot_device_1.wait_for_notifications(0.05):
+                    continue
 
         # Demo running.
         print('\nDemo running (\"CTRL+C\" to quit)...\n')        
 
         # Infinite loop.
         while True:
-            pass
-            # continue
-            # Getting notifications.
-            # if iot_device_1.wait_for_notifications(0.05):
-                # time.sleep(2) # workaround for Unexpected Response Issue
-                # print("rcvd notification!")
-                # continue
+            pass            
 
     except BTLEException as e:
         print(e)
