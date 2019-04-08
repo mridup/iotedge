@@ -9,6 +9,7 @@ import os
 import json
 import requests
 import threading
+from datetime import datetime, tzinfo, timedelta
 import blue_st_sdk
 import iothub_client
 # pylint: disable=E0611
@@ -22,9 +23,12 @@ from blue_st_sdk.features import *
 from blue_st_sdk.firmware_upgrade.firmware_upgrade_nucleo import FirmwareUpgradeNucleo
 from blue_st_sdk.firmware_upgrade.firmware_upgrade import FirmwareUpgradeListener
 from blue_st_sdk.firmware_upgrade.utils.firmware_file import FirmwareFile
+from blue_st_sdk.features.feature_activity_recognition import ActivityType as act
+from blue_st_sdk.features.feature_audio_scene_classification import SceneType as scene
 from bluepy.btle import BTLEException
 
 from enum import Enum
+
 
 # Firmware file paths.
 FIRMWARE_PATH = '/app/'
@@ -48,6 +52,12 @@ FIRMWARE_DESC_DICT = {  "SENSING1_ASC" + FIRMWARE_EXTENSION: "in-door;out-door;i
 
 BLE1_APPMOD_INPUT   = 'BLE1_App_Input'
 BLE1_APPMOD_OUTPUT  = 'BLE1_App_Output'
+
+class simple_utc(tzinfo):
+    def tzname(self,**kwargs):
+        return "UTC"
+    def utcoffset(self, dt):
+        return timedelta(0)
 
 # Status of the switch.
 class SwitchStatus(Enum):
@@ -115,56 +125,59 @@ class MyFeatureListener(FeatureListener):
         self.hubManager = hubManager
 
     def on_update(self, feature, sample):
-        return
         # global firmware_upgrade_completed
         # if firmware_upgrade_completed is True:
-        #     print("feature listener: onUpdate")        
-        #     feature_str = str(feature)
-        #     print(feature_str)
-        #     print(sample)
-        #     aiEventType = 'None'
-        #     aiEvent = 'None'
-        #     if feature.get_name() == "Activity Recognition":
-        #         eventType = feature_str[feature_str.find("Type.")+5:-1] # SceneType(Enum)
-        #         print(eventType)
-        #         if eventType is "STATIONARY":
-        #             aiEventType = "stationary"
-        #         elif eventType is "WALKING":
-        #             aiEventType = "walking"
-        #         elif eventType is "JOGGING":
-        #             aiEventType = "jogging"
-        #         elif eventType is "BIKING":
-        #             aiEventType = "biking"
-        #         elif eventType is "DRIVING":
-        #             aiEventType = "driving"
-        #         elif eventType is "STAIRS":
-        #             aiEventType = "stairs"
-        #         aiEvent = "activity-recognition"
-        #     elif feature.get_name() == "Audio Scene Classification":
-        #         eventType = feature_str[feature_str.find("Type.")+5:-1]  #  ActivityType(Enum)
-        #         print(eventType)
-        #         if eventType is "INDOOR":
-        #             aiEventType = "in-door"
-        #         elif eventType is "OUTDOOR":
-        #             aiEventType = "out-door"
-        #         elif eventType is "IN_VEHICLE":
-        #             aiEventType = "in-vehicle"
-        #         aiEvent = "audio-classification"
-        #     event_timestamp = feature.get_last_update()
-        #     print("event timestamp: " + event_timestamp.strftime("%H:%M:%S"))
+        print("feature listener: onUpdate")        
+        feature_str = str(feature)
+        print(feature_str)
+        print(sample)
+        aiEventType = 'None'
+        aiEvent = 'None'
+        if feature.get_name() == "Activity Recognition":
+            eventType = feature.get_activity(sample)
+            print(eventType)
+            if eventType is act.STATIONARY:
+                aiEventType = "stationary"
+            elif eventType is act.WALKING:
+                aiEventType = "walking"
+            elif eventType is act.JOGGING:
+                aiEventType = "jogging"
+            elif eventType is act.BIKING:
+                aiEventType = "biking"
+            elif eventType is act.DRIVING:
+                aiEventType = "driving"
+            elif eventType is act.STAIRS:
+                aiEventType = "stairs"
+            elif eventType is act.NO_ACTIVITY:
+                aiEventType = "no_activity"
+            aiEvent = "activity-recognition"
+        elif feature.get_name() == "Audio Scene Classification":
+            eventType = feature.get_scene(sample)
+            print(eventType)
+            if eventType is scene.INDOOR:
+                aiEventType = "in-door"
+            elif eventType is scene.OUTDOOR:
+                aiEventType = "out-door"
+            elif eventType is scene.IN_VEHICLE:
+                aiEventType = "in-vehicle"
+            elif eventType is scene.UNKNOWN:
+                aiEventType = "unknown"
+            aiEvent = "audio-classification"
+        event_timestamp = feature.get_last_update()
+        print("event timestamp: " + event_timestamp.replace(tzinfo=simple_utc()).isoformat().replace('+00:00', 'Z'))
 
-        #     event_json = {
-        #         "deviceId": "iotedge-0",
-        #         "moduleId": "modfwapp",
-        #         "aiEventType": aiEventType,
-        #         "aiEvent": aiEvent,
-        #         "ts": event_timestamp.strftime("%H:%M:%S")
-        #     }
-        #     json_string = json.dumps(event_json)
-        #     print(json_string)
-        #     event = IoTHubMessage(bytearray(json_string, 'utf8'))
-        #     self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
-        #     self.num += 1
+        event_json = {
+            "deviceId": "iotedge-0",
+            "moduleId": "modfwapp",
+            "aiEventType": aiEventType,
+            "aiEvent": aiEvent,
+            "ts": event_timestamp.replace(tzinfo=simple_utc()).isoformat().replace('+00:00', 'Z')
+        }
+        json_string = json.dumps(event_json)
+        print(json_string)
+        event = IoTHubMessage(bytearray(json_string, 'utf8'))
+        self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
+        self.num += 1
 
 #
 # Implementation of the interface used by the FirmwareUpgrade class to notify
@@ -478,15 +491,23 @@ def main(protocol):
         hub_manager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hub_manager)
         print('sent reported properties...')        
 
-        print('\nWaiting for FW Update process to be started...\n')
-        # Wait till firmware upgrade process is started in method callback
-        while not firmware_upgrade_started:
-            continue        
-        print('\nFW Update process started...!\n')
-        while not firmware_upgrade_completed:
-            while True:
-                if iot_device_1.wait_for_notifications(0.05):
-                    continue        
+        print('\nWaiting for event notifications...\n')
+        # Getting notifications about firmware events
+        feature = features[0]
+        # Enabling notifications.
+        feature_listener = MyFeatureListener(hub_manager)
+        feature.add_listener(feature_listener)
+        iot_device_1.enable_notifications(feature)
+
+        # print('\nWaiting for FW Update process to be started...\n')
+        # # Wait till firmware upgrade process is started in method callback
+        # while not firmware_upgrade_started:
+        #     continue        
+        # print('\nFW Update process started...!\n')
+        # while not firmware_upgrade_completed:
+        while True:
+            if iot_device_1.wait_for_notifications(0.05):
+                continue        
 
         # print('\nWaiting for event notifications...\n')
         # Getting notifications about firmware events
