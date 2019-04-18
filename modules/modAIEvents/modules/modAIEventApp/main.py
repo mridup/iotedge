@@ -137,38 +137,38 @@ class MyFeatureListener(FeatureListener):
             eventType = feature.get_activity(sample)
             print(eventType)
             if eventType is act.STATIONARY:
-                aiEventType = "stationary"
+                aiEvent = "stationary"
             elif eventType is act.WALKING:
-                aiEventType = "walking"
+                aiEvent = "walking"
             elif eventType is act.JOGGING:
-                aiEventType = "jogging"
+                aiEvent = "jogging"
             elif eventType is act.BIKING:
-                aiEventType = "biking"
+                aiEvent = "biking"
             elif eventType is act.DRIVING:
-                aiEventType = "driving"
+                aiEvent = "driving"
             elif eventType is act.STAIRS:
-                aiEventType = "stairs"
+                aiEvent = "stairs"
             elif eventType is act.NO_ACTIVITY:
-                aiEventType = "no_activity"
-            aiEvent = "activity-recognition"
+                aiEvent = "no_activity"
+            aiEventType = "activity-recognition"
         elif feature.get_name() == "Audio Scene Classification":
             eventType = feature.get_scene(sample)
             print(eventType)
             if eventType is scene.INDOOR:
-                aiEventType = "in-door"
+                aiEvent = "in-door"
             elif eventType is scene.OUTDOOR:
-                aiEventType = "out-door"
+                aiEvent = "out-door"
             elif eventType is scene.IN_VEHICLE:
-                aiEventType = "in-vehicle"
+                aiEvent = "in-vehicle"
             elif eventType is scene.UNKNOWN:
-                aiEventType = "unknown"
-            aiEvent = "audio-classification"
+                aiEvent = "unknown"
+            aiEventType = "audio-classification"
         event_timestamp = feature.get_last_update()
         print("event timestamp: " + event_timestamp.replace(tzinfo=simple_utc()).isoformat().replace('+00:00', 'Z'))
 
         event_json = {
             "deviceId": "iotedge-0",
-            "moduleId": "modfwapp",
+            "moduleId": "modaievtapp",
             "aiEventType": aiEventType,
             "aiEvent": aiEvent,
             "ts": event_timestamp.replace(tzinfo=simple_utc()).isoformat().replace('+00:00', 'Z')
