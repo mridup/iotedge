@@ -206,17 +206,18 @@ class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
             "SupportedMethods": {
                 "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"
             },
-            "AI": {
-                "firmware": firmware_status,    
+            "AI": {                
                 firmware_status: FIRMWARE_DESC_DICT[firmware_update_file]
             },
             "State": {
-                "fw_update": "Not_Running"
+                "firmware-file": firmware_update_file,
+                "fw_update": "not_running",
+                "last_fw_update": "success"
             }
         }
         json_string = json.dumps(reported_json)
         self.hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, self.hubManager)
-        print('sent reported properties...with status "not running"')
+        print('sent reported properties...with status "success"')
         time.sleep(10)
         firmware_upgrade_completed = True
 
@@ -228,7 +229,26 @@ class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
     # @param error         Error code.
     #
     def on_upgrade_firmware_error(self, debug_console, firmware_file, error):
+        global firmware_upgrade_completed
+        global firmware_status, firmware_update_file
         print('Firmware upgrade error: %s.' % (str(error)))
+        firmware_status = FIRMWARE_FILE_DICT[firmware_update_file]      
+        reported_json = {
+            "SupportedMethods": {
+                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"
+            },
+            "AI": {
+                firmware_status: FIRMWARE_DESC_DICT[firmware_update_file]
+            },
+            "State": {
+                "firmware-file": firmware_update_file,
+                "fw_update": "not_running",
+                "last_fw_update": "failed"
+            }
+        }
+        json_string = json.dumps(reported_json)
+        self.hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, self.hubManager)
+        print('sent reported properties...with status "fail"')
         time.sleep(5)
         firmware_upgrade_completed = True
 
@@ -318,11 +338,11 @@ def download_update(url, filename, hubManager):
                 "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
             },
             "AI": {
-                "firmware": firmware_status,
                 firmware_status: firmware_desc
             },
             "State": {
-                "fw_update": "Running"
+                "firmware-file": filename,
+                "fw_update": "running"
             }
         }
     json_string = json.dumps(reported_json)
@@ -501,11 +521,7 @@ def main(protocol):
                 "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
             },
             "AI": {
-                "firmware": firmware_status,
                 firmware_status: firmware_desc
-            },
-            "State": {
-                "fw_update": "Not_Running"
             }
         }
         json_string = json.dumps(reported_json)
