@@ -69,7 +69,8 @@ SCANNING_TIME_s = 5
 
 # Bluetooth Low Energy devices' MAC address.
 # IOT_DEVICE_1_MAC = 'd8:9a:e3:f0:12:d7'  ##System Lab BLE board
-IOT_DEVICE_1_MAC = 'ce:61:6b:61:53:c9'  # Sensor Tile board
+# IOT_DEVICE_1_MAC = 'ce:61:6b:61:53:c9'  # Sensor Tile board
+IOT_DEVICE_1_MAC = os.getenv('MAC_ADDR','d8:9a:e3:f0:12:d7')  # Sensor Tile board
 
 # Number of notifications to get before disabling them.
 NOTIFICATIONS = 3
