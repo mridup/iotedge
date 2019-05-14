@@ -123,9 +123,7 @@ class MyFeatureListener(FeatureListener):
     def __init__(self, hubManager):
         self.hubManager = hubManager
 
-    def on_update(self, feature, sample):
-        # global firmware_upgrade_completed
-        # if firmware_upgrade_completed is True:
+    def on_update(self, feature, sample):        
         print("feature listener: onUpdate")        
         feature_str = str(feature)
         print(feature_str)
@@ -178,158 +176,6 @@ class MyFeatureListener(FeatureListener):
         self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
         self.num += 1
 
-#
-# Implementation of the interface used by the FirmwareUpgrade class to notify
-# changes when upgrading the firmware.
-#
-class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
-
-    def __init__(self, hubManager):
-        self.hubManager = hubManager
-
-    #
-    # To be called whenever the firmware has been upgraded correctly.
-    #
-    # @param debug_console Debug console.
-    # @param firmware_file Firmware file.
-    #
-    def on_upgrade_firmware_complete(self, debug_console, firmware_file):
-        global firmware_upgrade_completed
-        global firmware_status, firmware_update_file
-        print('Firmware upgrade completed. Device is rebooting...')
-        # print('Firmware updated to: ' + firmware_file)
-        firmware_status = FIRMWARE_FILE_DICT[firmware_update_file]
-        print("Firmware status updated to: " + firmware_status)
-        print("Firmware description updated to: " + FIRMWARE_DESC_DICT[firmware_update_file])        
-        reported_json = {
-            "SupportedMethods": {
-                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"
-            },
-            "AI": {
-                "firmware": firmware_status,    
-                firmware_status: FIRMWARE_DESC_DICT[firmware_update_file]
-            },
-            "State": {
-                "fw_update": "Not_Running"
-            }
-        }
-        json_string = json.dumps(reported_json)
-        self.hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, self.hubManager)
-        print('sent reported properties...with status "not running"')
-        time.sleep(10)
-        firmware_upgrade_completed = True
-
-    #
-    # To be called whenever there is an error in upgrading the firmware.
-    #
-    # @param debug_console Debug console.
-    # @param firmware_file Firmware file.
-    # @param error         Error code.
-    #
-    def on_upgrade_firmware_error(self, debug_console, firmware_file, error):
-        print('Firmware upgrade error: %s.' % (str(error)))
-        time.sleep(5)
-        firmware_upgrade_completed = True
-
-    #
-    # To be called whenever there is an update in upgrading the firmware, i.e. a
-    # block of data has been correctly sent and it is possible to send a new one.
-    #
-    # @param debug_console Debug console.
-    # @param firmware_file Firmware file.
-    # @param bytes_sent    Data sent in bytes.
-    # @param bytes_to_send Data to send in bytes.
-    #
-    def on_upgrade_firmware_progress(self, debug_console, firmware_file, \
-        bytes_sent, bytes_to_send):
-        print('%d bytes out of %d sent...' % (bytes_sent, bytes_to_send))
-
-
-# This function will be called every time a method request is received
-def firmwareUpdate(method_name, payload, hubManager): 
-    global firmware_update_file, update_task
-    print('received method call:')
-    print('\tmethod name:', method_name)
-    print('\tpayload:', payload)
-    json_dict = json.loads(payload)
-    print ('\nURL to download from:')
-    url = json_dict['FwPackageUri']
-    print (url)
-    filename = url[url.rfind("/")+1:]
-    firmware_update_file = filename
-    print (filename)
-
-    # Start thread to download and update
-    update_task = threading.Thread(target=download_update, args=(url, filename, hubManager))
-    update_task.start()
-    print ('\ndownload and update task started')
-
-    retval = DeviceMethodReturnValue()
-    retval.status = 200
-    retval.response = "{\"result\":\"okay\"}"
-    return retval
-
-
-def startMonitor(method_name, payload, hubManager):
-    global firmware_upgrade_completed
-    print('received method call:')
-    print('\tmethod name:', method_name)
-    print('\tpayload:', payload)
-    json_dict = json.loads(payload)
-    # firmware_upgrade_completed = True
-
-    retval = DeviceMethodReturnValue()
-    retval.status = 200
-    retval.response = "{\"result\":\"okay\"}"
-    return retval
-
-
-def download_update(url, filename, hubManager):
-    global firmware_status, firmware_update_file, firmware_desc
-    print('\n>> Download and Update Task')
-    print('downloading file...')
-    download_file = "/app/" + filename
-    r = requests.get(url, stream = True)
-    with open(download_file,"wb") as _content: 
-        for chunk in r.iter_content(chunk_size=1024):
-            if chunk: 
-                _content.write(chunk) 
-    
-    if os.path.isfile(download_file):
-        print('download complete')        
-    else:
-        print('download failure')
-        return
-
-    # Now start FW update process using blue-stsdk-python interface
-    global iot_device_1
-    global firmware_upgrade_started
-    print('\nStarting process to upgrade firmware...File: ' + download_file)
-    upgrade_console = FirmwareUpgradeNucleo.get_console(iot_device_1)
-    upgrade_console_listener = MyFirmwareUpgradeListener(hubManager)
-    upgrade_console.add_listener(upgrade_console_listener)
-    firmware = FirmwareFile(download_file)
-    upgrade_console.upgrade_firmware(firmware)
-    time.sleep(2)
-    firmware_upgrade_started = True
-    reported_json = {
-            "SupportedMethods": {
-                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
-            },
-            "AI": {
-                "firmware": firmware_status,
-                firmware_status: firmware_desc
-            },
-            "State": {
-                "fw_update": "Running"
-            }
-        }
-    json_string = json.dumps(reported_json)
-    hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hubManager)
-    print('sent reported properties...with status "running"')
-    return
-
-
 def send_confirmation_callback(message, result, user_context):
     global SEND_CALLBACKS
     print ( "\nConfirmation[%d] received for message with result = %s" % (user_context, result) )
@@ -380,10 +226,6 @@ class HubManager(object):
 
         # Sets the callback when a module twin's desired properties are updated.
         self.client.set_module_twin_callback(module_twin_callback, self)
-
-        # Register the callback with the client
-        self.client.set_module_method_callback(firmwareUpdate, self)
-        # self.client.set_module_method_callback(startMonitor, self)
         
 
     # Forwards the message received onto the next stage in the process.
@@ -404,19 +246,14 @@ def main(protocol):
         global iot_device_1
         global iot_device_1_feature_switch
         global iot_device_1_status
-        global firmware_upgrade_completed
-        global firmware_upgrade_started
         global firmware_status
         global firmware_update_file
         global firmware_desc
-        global update_task
 
         # initialize_client(IoTHubTransportProvider.MQTT)
         hub_manager = HubManager(protocol)
 
         # Initial state.
-        firmware_upgrade_completed = False
-        firmware_upgrade_started = False
         iot_device_1_status = SwitchStatus.OFF
 
         print ( "Starting the FWModApp module using protocol MQTT...")
