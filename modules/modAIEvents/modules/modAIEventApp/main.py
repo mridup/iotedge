@@ -543,10 +543,12 @@ def main(protocol):
                 while True:
                     if no_wait:
                         iot_device_1.disable_notifications(feature)
+                        feature.remove_listener(feature_listener)
                         no_wait = False
                         continue
                     if firmware_upgrade_started:
                         if firmware_upgrade_completed:
+                            feature.add_listener(feature_listener)
                             iot_device_1.enable_notifications(feature)                    
                             firmware_upgrade_completed = False
                             firmware_upgrade_started = False
@@ -557,6 +559,7 @@ def main(protocol):
                             iot_device_1.disconnect()
                             print('Disconnection done.\n')
                             iot_device_1.remove_listener(node_listener)
+                            break 
                     if iot_device_1.wait_for_notifications(0.05):
                         # time.sleep(2) # workaround for Unexpected Response Issue
                         print("rcvd notification!")
