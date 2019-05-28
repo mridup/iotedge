@@ -438,133 +438,131 @@ def main(protocol):
         manager.add_listener(manager_listener)
 
         while True:
-            # Synchronous discovery of Bluetooth devices.
-            print('Scanning Bluetooth devices...\n')
-            manager.discover(False, float(SCANNING_TIME_s))
+        
+            while True:
+                # Synchronous discovery of Bluetooth devices.
+                print('Scanning Bluetooth devices...\n')
+                manager.discover(False, float(SCANNING_TIME_s))
 
-            # Getting discovered devices.
-            print('Getting node device...\n')
-            discovered_devices = manager.get_nodes()
+                # Getting discovered devices.
+                print('Getting node device...\n')
+                discovered_devices = manager.get_nodes()
 
-            # Listing discovered devices.
-            if not discovered_devices:
-                print('\nNo Bluetooth devices found.')
-                continue
-            else:
-                print('\nAvailable Bluetooth devices:')
-                # Checking discovered devices.
-                devices = []
-                dev_found = False
-                i = 1
-                for discovered in discovered_devices:
-                    device_name = discovered.get_name()
-                    print('%d) %s: [%s]' % (i, discovered.get_name(), discovered.get_tag()))
-                    if discovered.get_tag() == IOT_DEVICE_1_MAC:
-                        iot_device_1 = discovered
-                        devices.append(iot_device_1)
-                        print("IOT_DEVICE device found!")
-                        dev_found = True
+                # Listing discovered devices.
+                if not discovered_devices:
+                    print('\nNo Bluetooth devices found.')
+                    continue
+                else:
+                    print('\nAvailable Bluetooth devices:')
+                    # Checking discovered devices.
+                    devices = []
+                    dev_found = False
+                    i = 1
+                    for discovered in discovered_devices:
+                        device_name = discovered.get_name()
+                        print('%d) %s: [%s]' % (i, discovered.get_name(), discovered.get_tag()))
+                        if discovered.get_tag() == IOT_DEVICE_1_MAC:
+                            iot_device_1 = discovered
+                            devices.append(iot_device_1)
+                            print("IOT_DEVICE device found!")
+                            dev_found = True
+                            break
+                        i += 1
+                    if dev_found is True:
                         break
-                    i += 1
-                if dev_found is True:
-                    break
 
-        # Selecting a device.
-        # Connecting to the devices.
-        for device in devices:
-            device.add_listener(MyNodeListener())
-            print('Connecting to %s...' % (device.get_name()))
-            device.connect()
-            print('Connection done.')
+            # Selecting a device.
+            # Connecting to the devices.
+            for device in devices:
+                node_listener = MyNodeListener()
+                device.add_listener(node_listener)
+                print('Connecting to %s...' % (device.get_name()))
+                device.connect()
+                print('Connection done.')
 
-        # Getting features.
-        print('\nFeatures:')
-        i = 1
-        features = []
-        ai_fw_running = "none"
-        firmware_desc = "none"
-        for desired_feature in [
-            feature_audio_scene_classification.FeatureAudioSceneClassification,
-            feature_activity_recognition.FeatureActivityRecognition]:
-            feature = iot_device_1.get_feature(desired_feature)
-            if feature:
-                features.append(feature)
-                print('%d) %s' % (i, feature.get_name()))
-                if feature.get_name() == "Activity Recognition":
-                    ai_fw_running = "activity-recognition"
-                    firmware_desc = "stationary;walking;jogging;biking;driving;stairs"
-                    print(ai_fw_running + 'FW feature present')
-                elif feature.get_name() == "Audio Scene Classification":
-                    ai_fw_running = "audio-classification"
-                    firmware_desc = "in-door;out-door;in-vehicle"
-                    print(ai_fw_running + ' FW feature present')
-        i += 1        
-        if not features:
-            print('No features found.')
-        print('%d) Firmware upgrade' % (i))
+            # Getting features.
+            print('\nFeatures:')
+            i = 1
+            features = []
+            ai_fw_running = "none"
+            firmware_desc = "none"
+            for desired_feature in [
+                feature_audio_scene_classification.FeatureAudioSceneClassification,
+                feature_activity_recognition.FeatureActivityRecognition]:
+                feature = iot_device_1.get_feature(desired_feature)
+                if feature:
+                    features.append(feature)
+                    print('%d) %s' % (i, feature.get_name()))
+                    if feature.get_name() == "Activity Recognition":
+                        ai_fw_running = "activity-recognition"
+                        firmware_desc = "stationary;walking;jogging;biking;driving;stairs"
+                        print(ai_fw_running + 'FW feature present')
+                    elif feature.get_name() == "Audio Scene Classification":
+                        ai_fw_running = "audio-classification"
+                        firmware_desc = "in-door;out-door;in-vehicle"
+                        print(ai_fw_running + ' FW feature present')
+            i += 1        
+            if not features:
+                print('No features found.')
+            print('%d) Firmware upgrade' % (i))
 
-        firmware_status = ai_fw_running
-        print("firmware reported by module twin: " + firmware_status)
-        reported_json = {
-            "SupportedMethods": {
-                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
-            },
-            "AI": {
-                "firmware": firmware_status,
-                firmware_status: firmware_desc
-            },
-            "State": {
-                "fw_update": "Not_Running"
+            firmware_status = ai_fw_running
+            print("firmware reported by module twin: " + firmware_status)
+            reported_json = {
+                "SupportedMethods": {
+                    "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
+                },
+                "AI": {
+                    "firmware": firmware_status,
+                    firmware_status: firmware_desc
+                },
+                "State": {
+                    "fw_update": "Not_Running"
+                }
             }
-        }
-        json_string = json.dumps(reported_json)
-        hub_manager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hub_manager)
-        print('sent reported properties...')                
+            json_string = json.dumps(reported_json)
+            hub_manager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hub_manager)
+            print('sent reported properties...')                
 
-        # Getting notifications about firmware events
-        print('\nWaiting for event notifications...\n')        
-        feature = features[0]
-        # Enabling notifications.
-        upgrade_console = FirmwareUpgradeNucleo.get_console(iot_device_1)
-        upgrade_console_listener = MyFirmwareUpgradeListener(hub_manager)
-        upgrade_console.add_listener(upgrade_console_listener)
+            # Getting notifications about firmware events
+            print('\nWaiting for event notifications...\n')        
+            feature = features[0]
+            # Enabling notifications.
+            upgrade_console = FirmwareUpgradeNucleo.get_console(iot_device_1)
+            upgrade_console_listener = MyFirmwareUpgradeListener(hub_manager)
+            upgrade_console.add_listener(upgrade_console_listener)
 
-        feature_listener = MyFeatureListener(hub_manager)
-        feature.add_listener(feature_listener)
-        iot_device_1.enable_notifications(feature)
+            feature_listener = MyFeatureListener(hub_manager)
+            feature.add_listener(feature_listener)
+            iot_device_1.enable_notifications(feature)
 
-        # Demo running.
-        print('\nDemo running (\"CTRL+C\" to quit)...\n')        
+            # Demo running.
+            print('\nDemo running (\"CTRL+C\" to quit)...\n')        
 
-        # print('\nWaiting for FW Update process to be started...\n')
-        # Wait till firmware upgrade process is started in method callback
-        # while not firmware_upgrade_started:
-        #     continue        
-        # print('\nFW Update process started...!\n')
-        # while not firmware_upgrade_completed:
-        while True:
-            if no_wait:
-                iot_device_1.disable_notifications(feature)
-                no_wait = False
-                continue
-            if firmware_upgrade_started:
-                if firmware_upgrade_completed:
-                    iot_device_1.enable_notifications(feature)                    
-                    firmware_upgrade_completed = False
-                    firmware_upgrade_started = False
-            if iot_device_1.wait_for_notifications(0.05):
-                # time.sleep(2) # workaround for Unexpected Response Issue
-                print("rcvd notification!")
-                continue            
-
-
-        # # Infinite loop.
-        # while True:        
-        #     if iot_device_1.wait_for_notifications(0.05):
-        #         time.sleep(2) # workaround for Unexpected Response Issue
-        #         print("rcvd notification!")
-        #         continue
-           
+            try:
+                while True:
+                    if no_wait:
+                        iot_device_1.disable_notifications(feature)
+                        no_wait = False
+                        continue
+                    if firmware_upgrade_started:
+                        if firmware_upgrade_completed:
+                            iot_device_1.enable_notifications(feature)                    
+                            firmware_upgrade_completed = False
+                            firmware_upgrade_started = False
+                            # Now go for a reboot!!? We have already slept for 10 secs to let the BLE device reboot
+                            # Disconnecting from the device.
+                            upgrade_console.remove_listener(upgrade_console_listener)
+                            print('\nApp Disconnecting from %s...' % (iot_device_1.get_name()))
+                            iot_device_1.disconnect()
+                            print('Disconnection done.\n')
+                            iot_device_1.remove_listener(node_listener)
+                    if iot_device_1.wait_for_notifications(0.05):
+                        # time.sleep(2) # workaround for Unexpected Response Issue
+                        print("rcvd notification!")
+                        continue                        
+            except (OSError, ValueError) as e:
+                    print(e)                           
 
     except BTLEException as e:
         print(e)
