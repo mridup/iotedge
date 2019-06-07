@@ -28,7 +28,7 @@ from blue_st_sdk.features.feature_audio_scene_classification import SceneType as
 from bluepy.btle import BTLEException
 
 from enum import Enum
-
+from modutils import ReceiveContext
 
 # Firmware file paths.
 FIRMWARE_PATH = '/app/'
@@ -155,7 +155,7 @@ class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
         json_string = json.dumps(reported_json)
         self.hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, self.hubManager)
         print('sent reported properties...with status "success"')
-        time.sleep(10)
+        # time.sleep(10)
         firmware_upgrade_completed = True
 
     #
@@ -218,7 +218,7 @@ def firmwareUpdate(method_name, payload, hubManager):
     print (filename)
 
     # Start thread to download and update
-    update_task = threading.Thread(target=download_update, args=(url, filename, hubManager))
+    update_task = threading.Thread(target=download_update, args=(url, filename))
     update_task.start()
     print ('\ndownload and update task started')
 
@@ -287,12 +287,8 @@ class MyFeatureListener(FeatureListener):
         self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
         self.num += 1
 
-def download_update(url, filename, hubManager):
-    global firmware_upgrade_completed
-    global firmware_status, firmware_update_file, firmware_desc
-    global iot_device_1
-    global firmware_upgrade_started, features, feature_listener, no_wait
-    global upgrade_console, upgrade_console_listener
+def download_update(url, filename):
+    global no_wait
 
     print('\n>> Download and Update Task')
     print('downloading file...')
@@ -309,35 +305,8 @@ def download_update(url, filename, hubManager):
         print('download failure')
         return
 
-    no_wait = True
-    time.sleep(1) # yield!        
-    print('\nStarting process to upgrade firmware...File: ' + download_file)
-    while no_wait:
-        continue
-    firmware_upgrade_started = True
-    firmware_upgrade_completed = False
-
-    firmware = FirmwareFile(download_file)
-    # Now start FW update process using blue-stsdk-python interface
-    print("Starting upgrade now...")
-    upgrade_console.upgrade_firmware(firmware)
-    time.sleep(2)
-    
-    reported_json = {
-            "SupportedMethods": {
-                "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
-            },
-            "AI": {
-                firmware_status: firmware_desc
-            },
-            "State": {
-                "firmware-file": filename,
-                "fw_update": "running"
-            }
-        }
-    json_string = json.dumps(reported_json)
-    hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hubManager)
-    print('sent reported properties...with status "running"')
+    no_wait = True       
+    print('\nWaiting to start fw upgrade process....')    
     return
 
 def send_confirmation_callback(message, result, user_context):
@@ -419,7 +388,7 @@ def main(protocol):
         global firmware_desc
         global features, feature_listener, no_wait
         global upgrade_console, upgrade_console_listener
-
+        
         # initialize_client(IoTHubTransportProvider.MQTT)
         hub_manager = HubManager(protocol)
 
@@ -542,28 +511,66 @@ def main(protocol):
             try:
                 while True:
                     if no_wait:
+                        no_wait = False
+
                         iot_device_1.disable_notifications(feature)
                         feature.remove_listener(feature_listener)
-                        no_wait = False
+                        upgrade_console.add_listener(upgrade_console_listener)
+
+                        download_file = "/app/" + firmware_update_file
+                        print('\nStarting process to upgrade firmware...File: ' + download_file)
+                        firmware_upgrade_completed = False
+                        firmware_upgrade_started = True
+
+                        firmware = FirmwareFile(download_file)
+                        # Now start FW update process using blue-stsdk-python interface
+                        print("Starting upgrade now...")
+                        upgrade_console.upgrade_firmware(firmware)
+
+                        reported_json = {
+                                "SupportedMethods": {
+                                    "firmwareUpdate--FwPackageUri-string": "Updates device firmware. Use parameter FwPackageUri to specify the URL of the firmware file"                
+                                },
+                                "AI": {
+                                    firmware_status: firmware_desc
+                                },
+                                "State": {
+                                    "firmware-file": firmware_update_file,
+                                    "fw_update": "running"
+                                }
+                            }
+                        json_string = json.dumps(reported_json)
+                        hub_manager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hub_manager)
+                        print('sent reported properties...with status "running"')
+
+                        while not firmware_upgrade_completed:
+                            # while True:
+                            if iot_device_1.wait_for_notifications(0.05):
+                                continue
+                        print('firmware upgrade completed...going to re-add feature listener and disconnect from device...')
                         continue
+
                     if firmware_upgrade_started:
                         if firmware_upgrade_completed:
+                            upgrade_console.remove_listener(upgrade_console_listener)
                             feature.add_listener(feature_listener)
                             iot_device_1.enable_notifications(feature)                    
                             firmware_upgrade_completed = False
                             firmware_upgrade_started = False
-                            # Now go for a reboot!!? We have already slept for 10 secs to let the BLE device reboot
-                            # Disconnecting from the device.
-                            upgrade_console.remove_listener(upgrade_console_listener)
+
+                            # Disconnecting from the device.                            
                             print('\nApp Disconnecting from %s...' % (iot_device_1.get_name()))
                             iot_device_1.disconnect()
                             print('Disconnection done.\n')
                             iot_device_1.remove_listener(node_listener)
-                            break 
+                            print('waiting for device to reboot....')
+                            time.sleep(10)
+                            print('after sleep...going to try to reconnect with device....')
+                            break
                     if iot_device_1.wait_for_notifications(0.05):
                         # time.sleep(2) # workaround for Unexpected Response Issue
                         print("rcvd notification!")
-                        continue                        
+                        continue
             except (OSError, ValueError) as e:
                     print(e)                           
 
