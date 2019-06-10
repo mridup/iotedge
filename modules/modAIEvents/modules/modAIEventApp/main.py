@@ -13,8 +13,7 @@ from datetime import datetime, tzinfo, timedelta
 import blue_st_sdk
 import iothub_client
 # pylint: disable=E0611
-from iothub_client import IoTHubModuleClient, IoTHubClientError, IoTHubTransportProvider
-from iothub_client import IoTHubMessage, IoTHubMessageDispositionResult, IoTHubError, DeviceMethodReturnValue
+from iothub_client import IoTHubTransportProvider, IoTHubError
 
 from blue_st_sdk.manager import Manager, ManagerListener
 from blue_st_sdk.node import NodeListener
@@ -28,7 +27,8 @@ from blue_st_sdk.features.feature_audio_scene_classification import SceneType as
 from bluepy.btle import BTLEException
 
 from enum import Enum
-from modutils import ReceiveContext
+from edge_st_sdk.azure.azure_client import AzureClient
+from edge_st_sdk.utils.edge_st_exceptions import WrongInstantiationException
 
 # Firmware file paths.
 FIRMWARE_PATH = '/app/'
@@ -70,11 +70,7 @@ SCANNING_TIME_s = 5
 # Read BLE devices' MAC address from env var with default given
 IOT_DEVICE_1_MAC = os.getenv('MAC_ADDR','e3:60:e4:79:91:94')
 
-# Number of notifications to get before disabling them.
-NOTIFICATIONS = 3
-
-# Number of node devices
-NUM_DEVICES = 1
+MODULE_NAME = os.getenv('MODULE_NAME','modaievtapp')
 
 # messageTimeout - the maximum time in milliseconds until a message times out.
 # The timeout period starts at IoTHubModuleClient.send_event_async.
@@ -84,14 +80,6 @@ MESSAGE_TIMEOUT = 10000
 # global counters
 RECEIVE_CALLBACKS = 0
 SEND_CALLBACKS = 0
-USER_CONTEXT = 0
-RECEIVE_CONTEXT = 0
-AVG_WIND_SPEED = 10.0
-MIN_TEMPERATURE = 20.0
-MIN_HUMIDITY = 60.0
-MESSAGE_COUNT = 3
-
-MSG_TXT = "{\"iotedge\": \"DevPyTempSensor\",\"windSpeed\": %.2f,\"temperature\": %.2f,\"humidity\": %.2f}"
 
 # Choose HTTP, AMQP or MQTT as transport protocol.  Currently only MQTT is supported.
 PROTOCOL = IoTHubTransportProvider.MQTT
@@ -122,8 +110,8 @@ class MyNodeListener(NodeListener):
 #
 class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
 
-    def __init__(self, hubManager):
-        self.hubManager = hubManager
+    def __init__(self, azureClient):
+        self.module_client = azureClient
 
     #
     # To be called whenever the firmware has been upgraded correctly.
@@ -153,9 +141,8 @@ class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
             }
         }
         json_string = json.dumps(reported_json)
-        self.hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, self.hubManager)
+        self.module_client.update_shadow_state(json_string, send_reported_state_callback, self.module_client)
         print('sent reported properties...with status "success"')
-        # time.sleep(10)
         firmware_upgrade_completed = True
 
     #
@@ -184,7 +171,7 @@ class MyFirmwareUpgradeListener(FirmwareUpgradeListener):
             }
         }
         json_string = json.dumps(reported_json)
-        self.hubManager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, self.hubManager)
+        self.module_client.update_shadow_state(json_string, send_reported_state_callback, self.module_client)
         print('sent reported properties...with status "fail"')
         time.sleep(5)
         firmware_upgrade_completed = True
@@ -221,18 +208,14 @@ def firmwareUpdate(method_name, payload, hubManager):
     update_task = threading.Thread(target=download_update, args=(url, filename))
     update_task.start()
     print ('\ndownload and update task started')
-
-    retval = DeviceMethodReturnValue()
-    retval.status = 200
-    retval.response = "{\"result\":\"okay\"}"
-    return retval
+    return
 
 class MyFeatureListener(FeatureListener):
 
     num = 0
     
-    def __init__(self, hubManager):
-        self.hubManager = hubManager
+    def __init__(self, azureClient):
+        self.module_client = azureClient
 
     def on_update(self, feature, sample):        
         print("feature listener: onUpdate")        
@@ -283,8 +266,7 @@ class MyFeatureListener(FeatureListener):
         }
         json_string = json.dumps(event_json)
         print(json_string)
-        event = IoTHubMessage(bytearray(json_string, 'utf8'))
-        self.hubManager.forward_event_to_output(BLE1_APPMOD_OUTPUT, event, 0)
+        self.module_client.publish(BLE1_APPMOD_OUTPUT, json_string, send_confirmation_callback, 0)
         self.num += 1
 
 def download_update(url, filename):
@@ -316,60 +298,27 @@ def send_confirmation_callback(message, result, user_context):
     print ( "Total calls confirmed: %d" % SEND_CALLBACKS )
 
 
-def receive_ble1_message_callback(message, hubManager):
-    global RECEIVE_CALLBACKS
-    
+def receive_ble1_message_callback(message, context):
+    global RECEIVE_CALLBACKS    
     # Getting value.
     message_buffer = message.get_bytearray()
     size = len(message_buffer)
     message_text = message_buffer[:size].decode('utf-8')
-    # print('\nble1 receive msg cb << message: \n')    
     data = message_text.split()[3]
-    return IoTHubMessageDispositionResult.ACCEPTED
+    print('\nble1 receive msg cb << message: \n')
 
 
 # module_twin_callback is invoked when the module twin's desired properties are updated.
-def module_twin_callback(update_state, payload, hubManager):
+def module_twin_callback(update_state, payload, context):
     global firmware_status
     print ( "\nModule twin callback >> call confirmed\n")
     print('\tpayload:', payload)
 
 
-def send_reported_state_callback(status_code, hubManager):
+def send_reported_state_callback(status_code, context):
     print ( "\nSend reported state callback >> call confirmed\n")
     print ('status code: ', status_code)
     pass
-
-
-class HubManager(object):
-
-    def __init__(
-            self,
-            protocol=IoTHubTransportProvider.MQTT):
-        self.client_protocol = protocol
-        self.client = IoTHubModuleClient()
-        self.client.create_from_environment(protocol)
-
-        # set the time until a message times out
-        self.client.set_option("messageTimeout", MESSAGE_TIMEOUT)
-        
-        # sets the callback when a message arrives on "input1" queue.  Messages sent to 
-        # other inputs or to the default will be silently discarded.
-        self.client.set_message_callback(BLE1_APPMOD_INPUT, receive_ble1_message_callback, self)
-
-        # Sets the callback when a module twin's desired properties are updated.
-        self.client.set_module_twin_callback(module_twin_callback, self)
-        
-        # Register the callback with the client
-        self.client.set_module_method_callback(firmwareUpdate, self)
-
-    # Forwards the message received onto the next stage in the process.
-    def forward_event_to_output(self, outputQueueName, event, send_context):
-        self.client.send_event_async(
-            outputQueueName, event, send_confirmation_callback, send_context)
-
-    def get_send_status(self):
-        return self.client.get_send_status()
 
 
 def main(protocol):   
@@ -389,8 +338,14 @@ def main(protocol):
         global features, feature_listener, no_wait
         global upgrade_console, upgrade_console_listener
         
-        # initialize_client(IoTHubTransportProvider.MQTT)
-        hub_manager = HubManager(protocol)
+        # initialize_client
+        module_client = AzureClient(MODULE_NAME, PROTOCOL)
+
+        # Connecting clients to the runtime.
+        module_client.connect()
+        module_client.set_module_twin_callback(module_twin_callback, module_client)
+        module_client.set_module_method_callback(firmwareUpdate, module_client)        
+        module_client.subscribe(BLE1_APPMOD_INPUT, receive_ble1_message_callback, module_client)        
 
         # Initial state.
         firmware_upgrade_completed = False
@@ -490,7 +445,7 @@ def main(protocol):
                 }
             }
             json_string = json.dumps(reported_json)
-            hub_manager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hub_manager)
+            module_client.update_shadow_state(json_string, send_reported_state_callback, module_client)
             print('sent reported properties...')                
 
             # Getting notifications about firmware events
@@ -498,10 +453,10 @@ def main(protocol):
             feature = features[0]
             # Enabling notifications.
             upgrade_console = FirmwareUpgradeNucleo.get_console(iot_device_1)
-            upgrade_console_listener = MyFirmwareUpgradeListener(hub_manager)
+            upgrade_console_listener = MyFirmwareUpgradeListener(module_client)
             upgrade_console.add_listener(upgrade_console_listener)
 
-            feature_listener = MyFeatureListener(hub_manager)
+            feature_listener = MyFeatureListener(module_client)
             feature.add_listener(feature_listener)
             iot_device_1.enable_notifications(feature)
 
@@ -540,11 +495,10 @@ def main(protocol):
                                 }
                             }
                         json_string = json.dumps(reported_json)
-                        hub_manager.client.send_reported_state(json_string, len(json_string), send_reported_state_callback, hub_manager)
+                        module_client.update_shadow_state(json_string, send_reported_state_callback, module_client)
                         print('sent reported properties...with status "running"')
 
                         while not firmware_upgrade_completed:
-                            # while True:
                             if iot_device_1.wait_for_notifications(0.05):
                                 continue
                         print('firmware upgrade completed...going to re-add feature listener and disconnect from device...')
