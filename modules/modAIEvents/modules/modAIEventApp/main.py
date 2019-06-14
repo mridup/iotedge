@@ -27,6 +27,7 @@ from blue_st_sdk.features.feature_audio_scene_classification import SceneType as
 from bluepy.btle import BTLEException
 
 from enum import Enum
+from deviceclient.deviceclient import DeviceClient
 from edge_st_sdk.azure.azure_client import AzureClient
 from edge_st_sdk.utils.edge_st_exceptions import WrongInstantiationException
 
@@ -321,6 +322,11 @@ def send_reported_state_callback(status_code, context):
     pass
 
 
+# String containing Hostname, Device Id & Device Key in the format:
+# "HostName=<host_name>;DeviceId=<device_id>;SharedAccessKey=<device_key>"
+CONNECTION_STRING = "HostName=Mridu-IotHub.azure-devices.net;DeviceId=Dev_0;SharedAccessKey=rpdO7rL9wUYHdE8DJFaNhdonH25bsGD6tRPsZZJY6VY="
+
+
 def main(protocol):   
 
     try:
@@ -346,6 +352,12 @@ def main(protocol):
         module_client.set_module_twin_callback(module_twin_callback, module_client)
         module_client.set_module_method_callback(firmwareUpdate, module_client)        
         module_client.subscribe(BLE1_APPMOD_INPUT, receive_ble1_message_callback, module_client)        
+
+        # initialize device client (This can be a downstream device)
+        device_client = DeviceClient(CONNECTION_STRING, PROTOCOL)
+        msg_txt_formatted = "Device Message Test"
+        msg_properties = {}
+        device_client.send_event(msg_txt_formatted, msg_properties, 0)
 
         # Initial state.
         firmware_upgrade_completed = False
