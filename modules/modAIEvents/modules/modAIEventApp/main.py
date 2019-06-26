@@ -27,8 +27,8 @@ from blue_st_sdk.features.feature_audio_scene_classification import SceneType as
 from bluepy.btle import BTLEException
 
 from enum import Enum
-from deviceclient.deviceclient import DeviceClient
-from edge_st_sdk.azure.azure_client import AzureClient
+# from deviceclient.deviceclient import DeviceClient
+from edge_st_sdk.azure.azure_client import AzureModuleClient, AzureDeviceClient
 from edge_st_sdk.utils.edge_st_exceptions import WrongInstantiationException
 
 # Firmware file paths.
@@ -72,6 +72,7 @@ SCANNING_TIME_s = 5
 IOT_DEVICE_1_MAC = os.getenv('MAC_ADDR','e3:60:e4:79:91:94')
 
 MODULE_NAME = os.getenv('MODULE_NAME','modaievtapp')
+DEVICE_NAME = os.getenv('DEVICE_NAME','bledev0')
 
 # messageTimeout - the maximum time in milliseconds until a message times out.
 # The timeout period starts at IoTHubModuleClient.send_event_async.
@@ -215,8 +216,8 @@ class MyFeatureListener(FeatureListener):
 
     num = 0
     
-    def __init__(self, azureClient):
-        self.module_client = azureClient
+    def __init__(self, deviceClient):
+        self.device_client = deviceClient
 
     def on_update(self, feature, sample):        
         print("feature listener: onUpdate")        
@@ -267,7 +268,12 @@ class MyFeatureListener(FeatureListener):
         }
         json_string = json.dumps(event_json)
         print(json_string)
-        self.module_client.publish(BLE1_APPMOD_OUTPUT, json_string, send_confirmation_callback, 0)
+
+        # msg_txt_formatted = "Device Message Test"
+        msg_properties = {}
+        self.device_client.publish(json_string, msg_properties, send_confirmation_callback, 0)
+
+        # self.module_client.publish(BLE1_APPMOD_OUTPUT, json_string, send_confirmation_callback, 0)
         self.num += 1
 
 def download_update(url, filename):
@@ -345,7 +351,7 @@ def main(protocol):
         global upgrade_console, upgrade_console_listener
         
         # initialize_client
-        module_client = AzureClient(MODULE_NAME, PROTOCOL)
+        module_client = AzureModuleClient(MODULE_NAME, PROTOCOL)
 
         # Connecting clients to the runtime.
         module_client.connect()
@@ -354,10 +360,9 @@ def main(protocol):
         module_client.subscribe(BLE1_APPMOD_INPUT, receive_ble1_message_callback, module_client)        
 
         # initialize device client (This can be a downstream device)
-        device_client = DeviceClient(CONNECTION_STRING, PROTOCOL)
-        msg_txt_formatted = "Device Message Test"
-        msg_properties = {}
-        device_client.send_event(msg_txt_formatted, msg_properties, 0)
+        device_client = AzureDeviceClient(DEVICE_NAME, CONNECTION_STRING, PROTOCOL)
+        device_client.connect()
+        # publish, subscribe in case of a device does not involve a specific topic but goes-to/comes-from IoTHub
 
         # Initial state.
         firmware_upgrade_completed = False
@@ -468,7 +473,7 @@ def main(protocol):
             upgrade_console_listener = MyFirmwareUpgradeListener(module_client)
             upgrade_console.add_listener(upgrade_console_listener)
 
-            feature_listener = MyFeatureListener(module_client)
+            feature_listener = MyFeatureListener(device_client)
             feature.add_listener(feature_listener)
             iot_device_1.enable_notifications(feature)
 
