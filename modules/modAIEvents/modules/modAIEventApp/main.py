@@ -74,6 +74,10 @@ IOT_DEVICE_1_MAC = os.getenv('MAC_ADDR','e3:60:e4:79:91:94')
 MODULE_NAME = os.getenv('MODULE_NAME','modaievtapp')
 DEVICE_NAME = os.getenv('DEVICE_NAME','bledev0')
 
+# String containing Hostname, Device Id & Device Key in the format:
+# "HostName=<host_name>;DeviceId=<device_id>;SharedAccessKey=<device_key>"
+CONNECTION_STRING = os.getenv('CONNECTION_STRING', "HostName=Mridu-IotHub.azure-devices.net;DeviceId=Dev_0;SharedAccessKey=rpdO7rL9wUYHdE8DJFaNhdonH25bsGD6tRPsZZJY6VY=")
+
 # messageTimeout - the maximum time in milliseconds until a message times out.
 # The timeout period starts at IoTHubModuleClient.send_event_async.
 # By default, messages do not expire.
@@ -326,11 +330,6 @@ def send_reported_state_callback(status_code, context):
     print ( "\nSend reported state callback >> call confirmed\n")
     print ('status code: ', status_code)
     pass
-
-
-# String containing Hostname, Device Id & Device Key in the format:
-# "HostName=<host_name>;DeviceId=<device_id>;SharedAccessKey=<device_key>"
-CONNECTION_STRING = "HostName=Mridu-IotHub.azure-devices.net;DeviceId=Dev_0;SharedAccessKey=rpdO7rL9wUYHdE8DJFaNhdonH25bsGD6tRPsZZJY6VY="
 
 
 def main(protocol):   
